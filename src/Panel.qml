@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import Montop
 
 // A bordered box with its title set into the top edge, the way btop and the
 // Omarchy terminal tools frame their sections. The number is the key that
@@ -10,7 +11,7 @@ Item {
     property string title
     property string key
     property string detail
-    property color detailColor: theme.colors.dark_foreground
+    property color detailColor: Theme.colors.dark_foreground
     default property alias content: body.data
 
     Rectangle {
@@ -19,15 +20,15 @@ Item {
         anchors.topMargin: 7
         color: "transparent"
         border.width: 1
-        border.color: theme.colors.muted
-        radius: theme.radius
+        border.color: Theme.colors.muted
+        radius: Theme.radius
     }
 
     Rectangle {
         x: 12
         height: titleRow.height
         width: titleRow.width + 12
-        color: theme.colors.background
+        color: Theme.colors.background
 
         Row {
             id: titleRow
@@ -36,13 +37,13 @@ Item {
 
             Label {
                 text: panel.key
-                color: theme.accent
+                color: Theme.accent
                 font.bold: true
                 visible: panel.key.length > 0
             }
             Label {
                 text: panel.title
-                color: theme.colors.bright_foreground
+                color: Theme.colors.bright_foreground
                 font.bold: true
             }
         }
@@ -53,7 +54,7 @@ Item {
         anchors.rightMargin: 12
         height: detailLabel.height
         width: detailLabel.width + 12
-        color: theme.colors.background
+        color: Theme.colors.background
         visible: panel.detail.length > 0
 
         Label {

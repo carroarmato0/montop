@@ -17,27 +17,27 @@ Sparkline {
 
     readonly property var win: ApplicationWindow.window
 
-    source: monitor
+    source: Monitor
     step: 2
     phase: win ? win.phase : 1
-    gridColor: theme.colors.selection
+    gridColor: Theme.colors.selection
 
     // Sample k back from the newest sits at x = width + step - (k + phase) * step.
     function samplesAt(x) { return Math.max(0, Math.round((width + step - x) / step - phase)) }
     function xFor(samplesBack) { return width + step - (samplesBack + phase) * step }
 
     function describe(x) {
-        const time = monitor.sampleTime(samplesAt(x))
+        const time = Monitor.sampleTime(samplesAt(x))
         if (!time)
             return ""
         // Named by the app scan that covers it, the moment a click goes to.
-        const moment = monitor.momentTime(time)
+        const moment = Monitor.momentTime(time)
         const lines = ["<b>" + win.clock(moment || time) + "</b>  " + win.ago(moment || time)]
         if (blame.length > 0) {
-            for (const entry of monitor.blame(time, blame, 3)) {
-                const value = blame === "cpu" ? entry.value.toLocaleString(Qt.locale(), 'f', 0) + "%"
-                            : blame === "memory" ? monitor.bytes(entry.value)
-                            : monitor.rate(entry.value)
+            for (const entry of Monitor.blame(time, blame, 3)) {
+                const value = blame === "cpu" ? entry.value.toLocaleString(Translator.locale, 'f', 0) + "%"
+                            : blame === "memory" ? Monitor.bytes(entry.value)
+                            : Monitor.rate(entry.value)
                 lines.push(entry.name + "  " + value)
             }
         }
@@ -47,12 +47,12 @@ Sparkline {
 
     Rectangle {
         // Re-read on every sample, as the moment slides left.
-        readonly property int back: { win ? win.sampledAt : 0; return monitor.samplesSince(monitor.rewoundTo) }
+        readonly property int back: { graph.win ? graph.win.sampledAt : 0; return Monitor.samplesSince(Monitor.rewoundTo) } // qmllint disable confusing-expression-statement
         x: Math.round(graph.xFor(back))
         width: 1
         height: graph.height
-        visible: monitor.rewoundTo > 0 && x >= 0 && x <= graph.width
-        color: theme.accent
+        visible: Monitor.rewoundTo > 0 && x >= 0 && x <= graph.width
+        color: Theme.accent
     }
 
     Rectangle {
@@ -60,7 +60,7 @@ Sparkline {
         width: 1
         height: graph.height
         visible: pointer.containsMouse
-        color: theme.colors.dark_foreground
+        color: Theme.colors.dark_foreground
         opacity: 0.6
     }
 
@@ -69,14 +69,14 @@ Sparkline {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.CrossCursor
-        onClicked: mouse => monitor.rewindTo(monitor.sampleTime(graph.samplesAt(mouse.x)))
+        onClicked: mouse => Monitor.rewindTo(Monitor.sampleTime(graph.samplesAt(mouse.x)))
     }
 
     ToolTip {
         id: tip
         visible: pointer.containsMouse && text.length > 0
         // Follows the pointer, and re-reads as samples arrive under it.
-        text: { win ? win.sampledAt : 0; return pointer.containsMouse ? graph.describe(pointer.mouseX) : "" }
+        text: { graph.win ? graph.win.sampledAt : 0; return pointer.containsMouse ? graph.describe(pointer.mouseX) : "" } // qmllint disable confusing-expression-statement
         x: Math.min(pointer.mouseX + 14, graph.width - width)
         y: pointer.mouseY + 18
         delay: 0
@@ -84,14 +84,14 @@ Sparkline {
         contentItem: Label {
             text: tip.text
             textFormat: Text.StyledText
-            color: theme.colors.foreground
+            color: Theme.colors.foreground
             lineHeight: 1.15
         }
         background: Rectangle {
-            color: theme.colors.lighter_background
+            color: Theme.colors.lighter_background
             border.width: 1
-            border.color: theme.colors.muted
-            radius: Math.min(4, theme.radius)
+            border.color: Theme.colors.muted
+            radius: Math.min(4, Theme.radius)
         }
         enter: null
         exit: null

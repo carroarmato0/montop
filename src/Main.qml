@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtCore
 import QtQuick
 import QtQuick.Controls
@@ -13,13 +15,13 @@ ApplicationWindow {
     minimumHeight: 520
     visible: true
     title: "Montop"
-    color: theme.colors.background
+    color: Theme.colors.background
 
-    Material.theme: theme.dark ? Material.Dark : Material.Light
-    Material.accent: theme.accent
-    Material.background: theme.colors.background
-    Material.foreground: theme.colors.foreground
-    Material.roundedScale: theme.radius
+    Material.theme: Theme.dark ? Material.Dark : Material.Light
+    Material.accent: Theme.accent
+    Material.background: Theme.colors.background
+    Material.foreground: Theme.colors.foreground
+    Material.roundedScale: Theme.radius
 
     property bool helpVisible: false
     property alias showCpu: settings.showCpu
@@ -49,29 +51,29 @@ ApplicationWindow {
         property int interval: 250
     }
     Component.onCompleted: {
-        const model = monitor.processes
+        const model = Monitor.processes
         // Sorting by GPU% means nothing where no GPU reports it per app.
-        if (settings.sortColumn !== ProcessModel.Gpu || monitor.gpuPerApp)
+        if (settings.sortColumn !== ProcessModel.Gpu || Monitor.gpuPerApp)
             model.sortColumn = settings.sortColumn
         model.descending = settings.descending
         model.grouped = settings.grouped
         model.showKernelThreads = settings.kernelThreads
-        monitor.interval = settings.interval
+        Monitor.interval = settings.interval
     }
     Connections {
-        target: monitor.processes
+        target: Monitor.processes
         function onSortChanged() {
-            settings.sortColumn = monitor.processes.sortColumn
-            settings.descending = monitor.processes.descending
+            settings.sortColumn = Monitor.processes.sortColumn
+            settings.descending = Monitor.processes.descending
         }
-        function onGroupedChanged() { settings.grouped = monitor.processes.grouped }
-        function onFilterChanged() { settings.kernelThreads = monitor.processes.showKernelThreads }
+        function onGroupedChanged() { settings.grouped = Monitor.processes.grouped }
+        function onFilterChanged() { settings.kernelThreads = Monitor.processes.showKernelThreads }
     }
     Connections {
-        target: monitor
-        function onIntervalChanged() { settings.interval = monitor.interval }
+        target: Monitor
+        function onIntervalChanged() { settings.interval = Monitor.interval }
     }
-    readonly property bool gpuShown: showGpu && monitor.gpus.length > 0
+    readonly property bool gpuShown: showGpu && Monitor.gpus.length > 0
     // Single-letter shortcuts stand down while the filter has the keyboard
     // or a question is open, so typing doesn't kill processes.
     readonly property bool typing: processes.filtering || confirm.visible || limiter.visible
@@ -84,13 +86,13 @@ ApplicationWindow {
     property real phase: 1
     property double sampledAt: 0
     Connections {
-        target: monitor
+        target: Monitor
         function onSampled() {
             win.sampledAt = Date.now()
             win.phase = 0
         }
         function onPausedChanged() {
-            if (monitor.paused)
+            if (Monitor.paused)
                 win.phase = 1
         }
     }
@@ -99,10 +101,10 @@ ApplicationWindow {
     // nothing. A timer rather than a FrameAnimation: a running animation
     // keeps Qt redrawing at the display's full rate even when nothing changed.
     Timer {
-        interval: Math.max(16, Math.floor(monitor.interval / (2 * Screen.devicePixelRatio) / 2))
+        interval: Math.max(16, Math.floor(Monitor.interval / (2 * Screen.devicePixelRatio) / 2))
         repeat: true
-        running: win.phase < 1 && !monitor.paused && win.visibility !== Window.Minimized
-        onTriggered: win.phase = Math.min(1, (Date.now() - win.sampledAt) / monitor.interval)
+        running: win.phase < 1 && !Monitor.paused && win.visibility !== Window.Minimized
+        onTriggered: win.phase = Math.min(1, (Date.now() - win.sampledAt) / Monitor.interval)
     }
 
     property string message
@@ -116,8 +118,7 @@ ApplicationWindow {
 
     // Times on the graphs and while rewound, in the language's own format.
     function clock(time) {
-        translator.language
-        return new Date(time).toLocaleTimeString(Qt.locale(), "HH:mm:ss")
+        return new Date(time).toLocaleTimeString(Translator.locale, "HH:mm:ss")
     }
     function ago(time) {
         const seconds = Math.max(0, Math.round((Date.now() - time) / 1000))
@@ -128,9 +129,9 @@ ApplicationWindow {
     // A list from the past can't be acted on: its PIDs may belong to other
     // processes by now.
     function live() {
-        if (monitor.rewoundTo === 0)
+        if (Monitor.rewoundTo === 0)
             return true
-        win.say(qsTr("This is how things were at %1. Press Esc to return to now first.").arg(clock(monitor.rewoundTo)), true)
+        win.say(qsTr("This is how things were at %1. Press Esc to return to now first.").arg(clock(Monitor.rewoundTo)), true)
         return false
     }
 
@@ -139,7 +140,7 @@ ApplicationWindow {
         if (!live())
             return null
         const s = processes.selected
-        const app = s ? monitor.app(s.groupKey) : null
+        const app = s ? Monitor.app(s.groupKey) : null
         if (s && !app.key)
             win.say(qsTr("%1 has no cgroup of its own, so it can't be paused or limited.").arg(s.name), true)
         return app && app.key ? app : null
@@ -148,7 +149,7 @@ ApplicationWindow {
         const app = selectedApp()
         if (!app)
             return
-        const error = monitor.setAppPaused(app.key, !app.frozen)
+        const error = Monitor.setAppPaused(app.key, !app.frozen)
         if (error.length > 0)
             win.say(error, true)
         else
@@ -161,7 +162,7 @@ ApplicationWindow {
             return
         if (app.control.length > 0) {
             // Same sentence the monitor gives, without a pointless dialog.
-            win.say(monitor.setAppCpuLimit(app.key, app.cpuLimit), true)
+            win.say(Monitor.setAppCpuLimit(app.key, app.cpuLimit), true)
             return
         }
         limiter.key = app.key
@@ -194,7 +195,7 @@ ApplicationWindow {
 
     Shortcut { sequence: "?"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.helpVisible = !win.helpVisible }
     Shortcut { sequences: ["Q", "Ctrl+Q"]; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Qt.quit() }
-    Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.paused = !monitor.paused }
+    Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.paused = !Monitor.paused }
     Shortcut {
         sequence: "Escape"
         context: Qt.ApplicationShortcut
@@ -202,9 +203,9 @@ ApplicationWindow {
         onActivated: {
             if (win.helpVisible)
                 win.helpVisible = false
-            else if (monitor.rewoundTo > 0)
-                monitor.rewindTo(0)
-            else if (monitor.processes.filter.length > 0)
+            else if (Monitor.rewoundTo > 0)
+                Monitor.rewindTo(0)
+            else if (Monitor.processes.filter.length > 0)
                 processes.clearFilter()
         }
     }
@@ -214,25 +215,25 @@ ApplicationWindow {
     Shortcut { sequence: "PgDown"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.page(1) }
     Shortcut { sequence: "PgUp"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.page(-1) }
     Shortcut { sequences: ["Home", "G"]; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.select(0) }
-    Shortcut { sequences: ["End", "Shift+G"]; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.select(monitor.processes.count - 1) }
-    Shortcut { sequence: "S"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.processes.cycleSort() }
-    Shortcut { sequence: "R"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.processes.descending = !monitor.processes.descending }
+    Shortcut { sequences: ["End", "Shift+G"]; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.select(Monitor.processes.count - 1) }
+    Shortcut { sequence: "S"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.processes.cycleSort() }
+    Shortcut { sequence: "R"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.processes.descending = !Monitor.processes.descending }
     Shortcut {
         sequence: "Shift+K"
         context: Qt.ApplicationShortcut
         enabled: !win.typing
         onActivated: {
-            monitor.processes.showKernelThreads = !monitor.processes.showKernelThreads
-            win.say(monitor.processes.showKernelThreads ? qsTr("Showing kernel threads") : qsTr("Hiding kernel threads"))
+            Monitor.processes.showKernelThreads = !Monitor.processes.showKernelThreads
+            win.say(Monitor.processes.showKernelThreads ? qsTr("Showing kernel threads") : qsTr("Hiding kernel threads"))
         }
     }
     Shortcut { sequence: "A"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.toggleGrouped() }
     Shortcut { sequences: ["Right", "L", "Return", "Enter"]; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.expand() }
     Shortcut { sequences: ["Left", "H"]; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: processes.collapse() }
-    Shortcut { sequence: "["; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.rewindBy(-10) }
-    Shortcut { sequence: "]"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.rewindBy(10) }
-    Shortcut { sequence: "{"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.rewindBy(-60) }
-    Shortcut { sequence: "}"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: monitor.rewindBy(60) }
+    Shortcut { sequence: "["; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.rewindBy(-10) }
+    Shortcut { sequence: "]"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.rewindBy(10) }
+    Shortcut { sequence: "{"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.rewindBy(-60) }
+    Shortcut { sequence: "}"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: Monitor.rewindBy(60) }
     Shortcut { sequence: "P"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.togglePause() }
     Shortcut { sequence: "C"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.askToLimit() }
     Shortcut { sequence: "X"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.askToEnd(false) }
@@ -241,13 +242,13 @@ ApplicationWindow {
         sequences: ["+", "="]
         context: Qt.ApplicationShortcut
         enabled: !win.typing
-        onActivated: { monitor.slower(); win.say(qsTr("Updating every %1 s").arg((monitor.interval / 1000).toLocaleString(Qt.locale(), 'f', 3).replace(/[.,]?0+$/, ""))) }
+        onActivated: { Monitor.slower(); win.say(qsTr("Updating every %1 s").arg((Monitor.interval / 1000).toLocaleString(Translator.locale, 'f', 3).replace(/[.,]?0+$/, ""))) }
     }
     Shortcut {
         sequence: "-"
         context: Qt.ApplicationShortcut
         enabled: !win.typing
-        onActivated: { monitor.faster(); win.say(qsTr("Updating every %1 s").arg((monitor.interval / 1000).toLocaleString(Qt.locale(), 'f', 3).replace(/[.,]?0+$/, ""))) }
+        onActivated: { Monitor.faster(); win.say(qsTr("Updating every %1 s").arg((Monitor.interval / 1000).toLocaleString(Translator.locale, 'f', 3).replace(/[.,]?0+$/, ""))) }
     }
     Shortcut { sequence: "1"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.showCpu = !win.showCpu }
     Shortcut { sequence: "2"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.showMemory = !win.showMemory }
@@ -260,7 +261,7 @@ ApplicationWindow {
     // application's layout direction.
     Item {
         anchors.fill: parent
-        LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
+        LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
         LayoutMirroring.childrenInherit: true
 
         ColumnLayout {
@@ -272,36 +273,36 @@ ApplicationWindow {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 16
-                Label { text: monitor.hostname; color: theme.accent; font.bold: true }
-                Label { text: monitor.kernel; color: theme.colors.dark_foreground }
+                Label { text: Monitor.hostname; color: Theme.accent; font.bold: true }
+                Label { text: Monitor.kernel; color: Theme.colors.dark_foreground }
                 Label {
-                    text: { translator.language; return qsTr("up %1").arg(win.duration(monitor.uptime)) }
-                    color: theme.colors.dark_foreground
+                    text: { return qsTr("up %1").arg(win.duration(Monitor.uptime)) }
+                    color: Theme.colors.dark_foreground
                 }
                 Item { Layout.fillWidth: true }
                 Label {
-                    visible: monitor.rewoundTo > 0
-                    text: { win.sampledAt; return qsTr("Showing %1, %2  ·  Esc returns to now").arg(win.clock(monitor.rewoundTo)).arg(win.ago(monitor.rewoundTo)) }
-                    color: theme.accent
+                    visible: Monitor.rewoundTo > 0
+                    text: { win.sampledAt; return qsTr("Showing %1, %2  ·  Esc returns to now").arg(win.clock(Monitor.rewoundTo)).arg(win.ago(Monitor.rewoundTo)) } // qmllint disable confusing-expression-statement
+                    color: Theme.accent
                     font.bold: true
                 }
                 Label {
-                    visible: monitor.paused
+                    visible: Monitor.paused
                     text: qsTr("Updates paused")
-                    color: theme.colors.yellow
+                    color: Theme.colors.yellow
                     font.bold: true
                 }
                 Label {
-                    text: { translator.language; return qsTr("every %1 s").arg((monitor.interval / 1000).toLocaleString(Qt.locale(), 'f', 3).replace(/[.,]?0+$/, "")) }
-                    color: theme.colors.dark_foreground
+                    text: { return qsTr("every %1 s").arg((Monitor.interval / 1000).toLocaleString(Translator.locale, 'f', 3).replace(/[.,]?0+$/, "")) }
+                    color: Theme.colors.dark_foreground
                 }
             }
 
             Label {
                 Layout.fillWidth: true
-                visible: monitor.error.length > 0
-                text: monitor.error
-                color: theme.colors.red
+                visible: Monitor.error.length > 0
+                text: Monitor.error
+                color: Theme.colors.red
                 wrapMode: Text.Wrap
             }
 
@@ -381,12 +382,12 @@ ApplicationWindow {
                             .concat(processes.selected.frozen ? [qsTr("paused")] : [])
                             .concat(processes.selected.cpuLimit > 0 ? [qsTr("limited to %1%").arg(Math.round(processes.selected.cpuLimit))] : [])
                             .concat([processes.selected.command]).join("  ·  ")
-                    color: win.message.length > 0 ? (win.messageIsError ? theme.colors.red : theme.accent) : theme.colors.dark_foreground
+                    color: win.message.length > 0 ? (win.messageIsError ? Theme.colors.red : Theme.accent) : Theme.colors.dark_foreground
                     elide: Text.ElideRight
                 }
                 Label {
                     text: qsTr("? shortcuts")
-                    color: theme.colors.dark_foreground
+                    color: Theme.colors.dark_foreground
                 }
             }
         }
@@ -419,22 +420,22 @@ ApplicationWindow {
         padding: 20
         closePolicy: Popup.CloseOnEscape
         // Material's own dimmer greys a dark window out; darken it instead.
-        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, theme.dark ? 0.55 : 0.3) }
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, Theme.dark ? 0.55 : 0.3) }
         onOpened: confirmButton.forceActiveFocus()
 
         background: Rectangle {
-            color: theme.colors.lighter_background
+            color: Theme.colors.lighter_background
             border.width: 1
-            border.color: confirm.force ? theme.colors.red : theme.accent
-            radius: theme.radius
+            border.color: confirm.force ? Theme.colors.red : Theme.accent
+            radius: Theme.radius
         }
 
         function accept() {
             // A frozen process can't act on SIGTERM; let it go first.
-            if (group && monitor.app(key).frozen)
-                monitor.setAppPaused(key, false)
+            if (group && Monitor.app(key).frozen)
+                Monitor.setAppPaused(key, false)
             if (group) {
-                const result = monitor.signalProcesses(pids, force)
+                const result = Monitor.signalProcesses(pids, force)
                 close()
                 if (result.failed === 0)
                     win.say(force ? qsTr("Killed %1").arg(name) : qsTr("Asked %1 to end").arg(name))
@@ -444,7 +445,7 @@ ApplicationWindow {
                     win.say(qsTr("Couldn't signal %n of %1's processes, error %2", "", result.failed).arg(name).arg(result.error), true)
                 return
             }
-            const error = monitor.signalProcess(pid, force)
+            const error = Monitor.signalProcess(pid, force)
             close()
             if (error === 0)
                 win.say(force ? qsTr("Killed %1 (%2)").arg(name).arg(pid) : qsTr("Asked %1 (%2) to end").arg(name).arg(pid))
@@ -467,7 +468,7 @@ ApplicationWindow {
                                      : qsTr("End %1 and its %n processes?", "", confirm.pids.length).arg(confirm.name))
                     : (confirm.force ? qsTr("Kill %1 (%2)?").arg(confirm.name).arg(confirm.pid)
                                      : qsTr("End %1 (%2)?").arg(confirm.name).arg(confirm.pid))
-                color: theme.colors.bright_foreground
+                color: Theme.colors.bright_foreground
                 font.bold: true
                 font.pixelSize: 15
             }
@@ -477,14 +478,14 @@ ApplicationWindow {
                 text: confirm.force
                     ? qsTr("SIGKILL stops it immediately. Unsaved work in it is lost.")
                     : qsTr("SIGTERM asks it to close, so it can save and clean up first.")
-                color: theme.colors.foreground
+                color: Theme.colors.foreground
             }
             Label {
                 visible: confirm.critical
                 Layout.maximumWidth: 420
                 wrapMode: Text.Wrap
                 text: qsTr("%1 is part of your system, not an app you opened. Ending it can close your session or break what depends on it.").arg(confirm.name)
-                color: theme.colors.red
+                color: Theme.colors.red
             }
             RowLayout {
                 Layout.alignment: Qt.AlignRight
@@ -498,7 +499,7 @@ ApplicationWindow {
                     id: confirmButton
                     text: confirm.force ? qsTr("Kill") : qsTr("End")
                     highlighted: true
-                    Material.accent: confirm.force ? theme.colors.red : theme.accent
+                    Material.accent: confirm.force ? Theme.colors.red : Theme.accent
                     onClicked: confirm.accept()
                     Keys.onReturnPressed: confirm.accept()
                     Keys.onEnterPressed: confirm.accept()
@@ -517,7 +518,7 @@ ApplicationWindow {
         property real current
         readonly property var choices: {
             const list = [0, 25, 50, 100]
-            for (let n = 200; n < monitor.coreCount * 100; n *= 2)
+            for (let n = 200; n < Monitor.coreCount * 100; n *= 2)
                 list.push(n)
             return list
         }
@@ -529,7 +530,7 @@ ApplicationWindow {
             return percent >= 100 ? qsTr("%n cores", "", percent / 100) : ""
         }
         function apply(percent) {
-            const error = monitor.setAppCpuLimit(key, percent)
+            const error = Monitor.setAppCpuLimit(key, percent)
             close()
             if (error.length > 0)
                 win.say(error, true)
@@ -544,7 +545,7 @@ ApplicationWindow {
         focus: true
         padding: 20
         closePolicy: Popup.CloseOnEscape
-        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, theme.dark ? 0.55 : 0.3) }
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, Theme.dark ? 0.55 : 0.3) }
         onOpened: {
             const at = choices.indexOf(Math.round(current))
             choiceList.currentIndex = at >= 0 ? at : 0
@@ -552,10 +553,10 @@ ApplicationWindow {
         }
 
         background: Rectangle {
-            color: theme.colors.lighter_background
+            color: Theme.colors.lighter_background
             border.width: 1
-            border.color: theme.accent
-            radius: theme.radius
+            border.color: Theme.accent
+            radius: Theme.radius
         }
 
         contentItem: ColumnLayout {
@@ -563,7 +564,7 @@ ApplicationWindow {
 
             Label {
                 text: qsTr("Limit %1's CPU").arg(limiter.name)
-                color: theme.colors.bright_foreground
+                color: Theme.colors.bright_foreground
                 font.bold: true
                 font.pixelSize: 15
             }
@@ -571,7 +572,7 @@ ApplicationWindow {
                 Layout.maximumWidth: 380
                 wrapMode: Text.Wrap
                 text: qsTr("It keeps running, just slower. Percent of one core, as in the CPU column.")
-                color: theme.colors.foreground
+                color: Theme.colors.foreground
             }
             ListView {
                 id: choiceList
@@ -594,8 +595,8 @@ ApplicationWindow {
                     readonly property bool current: ListView.isCurrentItem
                     width: ListView.view.width
                     height: 26
-                    radius: Math.min(3, theme.radius)
-                    color: current ? theme.colors.selection : "transparent"
+                    radius: Math.min(3, Theme.radius)
+                    color: current ? Theme.colors.selection : "transparent"
 
                     RowLayout {
                         anchors.fill: parent
@@ -604,19 +605,19 @@ ApplicationWindow {
                         spacing: 12
                         Label {
                             text: choice.modelData === 0 ? qsTr("No limit") : qsTr("Up to %1%").arg(choice.modelData)
-                            color: choice.current ? theme.accent : theme.colors.bright_foreground
+                            color: choice.current ? Theme.accent : Theme.colors.bright_foreground
                             font.bold: choice.current
                         }
                         Label {
                             Layout.fillWidth: true
                             text: limiter.describe(choice.modelData)
-                            color: theme.colors.dark_foreground
+                            color: Theme.colors.dark_foreground
                             elide: Text.ElideRight
                         }
                         Label {
                             visible: Math.round(limiter.current) === choice.modelData
                             text: qsTr("now")
-                            color: theme.accent
+                            color: Theme.accent
                         }
                     }
                     MouseArea {

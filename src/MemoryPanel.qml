@@ -1,23 +1,26 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Montop
 
 Panel {
     id: root
 
     function amount(kind) {
         switch (kind) {
-        case "used": return monitor.memoryUsed
-        case "cached": return monitor.memoryCached
-        case "available": return monitor.memoryAvailable
-        case "swap": return monitor.swapUsed
+        case "used": return Monitor.memoryUsed
+        case "cached": return Monitor.memoryCached
+        case "available": return Monitor.memoryAvailable
+        case "swap": return Monitor.swapUsed
         }
         return 0
     }
 
     title: qsTr("Memory")
     key: "2"
-    detail: monitor.bytes(monitor.memoryTotal)
+    detail: Monitor.bytes(Monitor.memoryTotal)
 
     ColumnLayout {
         anchors.fill: parent
@@ -30,7 +33,7 @@ Panel {
             series: "memory"
             blame: "memory"
             maximum: 1
-            color: theme.colors.magenta
+            color: Theme.colors.magenta
         }
 
         // The rows are fixed and read their numbers live, so they aren't
@@ -40,7 +43,7 @@ Panel {
             delegate: RowLayout {
                 id: memoryRow
                 required property string modelData
-                readonly property real total: modelData === "swap" ? monitor.swapTotal : monitor.memoryTotal
+                readonly property real total: modelData === "swap" ? Monitor.swapTotal : Monitor.memoryTotal
                 readonly property real amount: root.amount(modelData)
 
                 Layout.fillWidth: true
@@ -57,21 +60,21 @@ Panel {
                         }
                         return qsTr("Swap")
                     }
-                    color: theme.colors.dark_foreground
+                    color: Theme.colors.dark_foreground
                     elide: Text.ElideRight
                 }
                 Meter {
                     Layout.fillWidth: true
                     value: memoryRow.total > 0 ? memoryRow.amount / memoryRow.total : 0
-                    color: memoryRow.modelData === "cached" ? theme.colors.blue
-                         : memoryRow.modelData === "available" ? theme.colors.cyan
-                         : value < 0.5 ? theme.colors.green : value < 0.8 ? theme.colors.yellow : theme.colors.red
+                    color: memoryRow.modelData === "cached" ? Theme.colors.blue
+                         : memoryRow.modelData === "available" ? Theme.colors.cyan
+                         : value < 0.5 ? Theme.colors.green : value < 0.8 ? Theme.colors.yellow : Theme.colors.red
                 }
                 Label {
                     Layout.preferredWidth: 80
                     horizontalAlignment: Text.AlignRight
-                    text: monitor.bytes(memoryRow.amount)
-                    color: theme.colors.foreground
+                    text: Monitor.bytes(memoryRow.amount)
+                    color: Theme.colors.foreground
                 }
             }
         }

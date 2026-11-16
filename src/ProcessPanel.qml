@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -6,23 +8,23 @@ import Montop
 Panel {
     id: root
 
-    readonly property var model: monitor.processes
+    readonly property var model: Monitor.processes
     // Selection follows the app or process ("g:<app>", "p:<pid>"), not the
     // row, so it stays put while the list re-sorts under it every sample.
     property string selectedKey
     // Bumped on every sample, so bindings that ask the model re-run.
     property int tick: 0
     readonly property int selectedRow: {
-        tick
+        tick // qmllint disable confusing-expression-statement
         return model.rowOf(selectedKey)
     }
     readonly property var selected: {
-        tick
+        tick // qmllint disable confusing-expression-statement
         return selectedRow >= 0 ? model.get(selectedRow) : null
     }
 
     Connections {
-        target: monitor
+        target: Monitor
         function onSampled() { root.tick++ }
         function onRewindChanged() { root.tick++ }
     }
@@ -100,21 +102,21 @@ Panel {
     function startFilter() { filterField.forceActiveFocus(); filterField.selectAll() }
     function clearFilter() { filterField.text = ""; list.forceActiveFocus() }
 
-    function number(value, decimals) { return value.toLocaleString(Qt.locale(), 'f', decimals) }
+    function number(value, decimals) { return value.toLocaleString(Translator.locale, 'f', decimals) }
 
-    readonly property bool rewound: monitor.rewoundTo > 0
-    title: rewound ? (model.grouped ? qsTr("Apps at %1") : qsTr("Processes at %1")).arg(ApplicationWindow.window.clock(monitor.rewoundTo))
+    readonly property var appWindow: ApplicationWindow.window
+    readonly property bool rewound: Monitor.rewoundTo > 0
+    title: rewound ? (model.grouped ? qsTr("Apps at %1") : qsTr("Processes at %1")).arg(appWindow.clock(Monitor.rewoundTo))
          : model.grouped ? qsTr("Apps") : qsTr("Processes")
     key: "5"
-    detailColor: rewound ? theme.accent : theme.colors.dark_foreground
+    detailColor: rewound ? Theme.accent : Theme.colors.dark_foreground
     detail: {
-        translator.language
         // The past keeps only what was busy or large.
         if (rewound)
             return qsTr("busy and large apps only")
         if (model.filter.length > 0 && !model.grouped)
             return qsTr("%1 of %2 match").arg(model.count).arg(model.total)
-        const parts = [qsTr("%n processes", "", model.total), qsTr("%n threads", "", monitor.taskCount)]
+        const parts = [qsTr("%n processes", "", model.total), qsTr("%n threads", "", Monitor.taskCount)]
         if (model.grouped)
             parts.unshift(qsTr("%n apps", "", model.groupCount))
         return parts.join("  ·  ")
@@ -142,7 +144,7 @@ Panel {
         const available = list.width - 12
         const dropOrder = [2, 6, 4, 9, 8, 3]
         // GPU% only where a GPU says which app uses it.
-        const visible = columns.map((c, i) => i !== 6 || monitor.gpuPerApp)
+        const visible = columns.map((c, i) => i !== 6 || Monitor.gpuPerApp)
         const needed = () => columns.reduce((sum, c, i) => visible[i] ? sum + (c.width > 0 ? c.width : commandMinimum) + spacing : sum, -spacing)
         for (const index of dropOrder) {
             if (needed() <= available)
@@ -172,14 +174,14 @@ Panel {
             spacing: 10
             visible: filterField.activeFocus || filterField.text.length > 0
 
-            Label { text: "/"; color: theme.accent; font.bold: true }
+            Label { text: "/"; color: Theme.accent; font.bold: true }
             TextField {
                 id: filterField
                 Layout.fillWidth: true
                 placeholderText: qsTr("Filter by name, command, user, or PID")
                 text: root.model.filter
                 onTextChanged: root.model.filter = text
-                color: theme.colors.bright_foreground
+                color: Theme.colors.bright_foreground
                 background: Rectangle {
                     color: "transparent"
                     border.width: 0
@@ -187,7 +189,7 @@ Panel {
                         anchors.bottom: parent.bottom
                         width: parent.width
                         height: 1
-                        color: filterField.activeFocus ? theme.accent : theme.colors.muted
+                        color: filterField.activeFocus ? Theme.accent : Theme.colors.muted
                     }
                 }
                 padding: 2
@@ -206,6 +208,7 @@ Panel {
             Repeater {
                 model: root.columns
                 delegate: Label {
+                    id: header
                     required property var modelData
                     required property int index
                     readonly property bool sorted: modelData.sort === root.model.sortColumn
@@ -213,15 +216,15 @@ Panel {
                     visible: root.shown[index]
                     horizontalAlignment: modelData.right ? Text.AlignRight : Text.AlignLeft
                     text: modelData.title + (sorted ? (root.model.descending ? " ↓" : " ↑") : "")
-                    color: sorted ? theme.accent : theme.colors.dark_foreground
+                    color: sorted ? Theme.accent : Theme.colors.dark_foreground
                     font.bold: true
                     elide: Text.ElideRight
 
                     MouseArea {
                         anchors.fill: parent
-                        enabled: modelData.sort >= 0
+                        enabled: header.modelData.sort >= 0
                         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: root.model.sortBy(modelData.sort)
+                        onClicked: root.model.sortBy(header.modelData.sort)
                     }
                 }
             }
@@ -262,11 +265,11 @@ Panel {
 
                 width: ListView.view.width
                 height: 22
-                radius: Math.min(3, theme.radius)
-                color: current ? theme.colors.selection : "transparent"
+                radius: Math.min(3, Theme.radius)
+                color: current ? Theme.colors.selection : "transparent"
 
-                readonly property color text: current ? theme.colors.bright_foreground : theme.colors.foreground
-                readonly property color quiet: current ? theme.colors.light_foreground : theme.colors.dark_foreground
+                readonly property color text: current ? Theme.colors.bright_foreground : Theme.colors.foreground
+                readonly property color quiet: current ? Theme.colors.light_foreground : Theme.colors.dark_foreground
 
                 Row {
                     anchors.verticalCenter: parent.verticalCenter
@@ -291,7 +294,7 @@ Panel {
                             visible: row.isGroup
                             width: 14
                             text: row.expanded ? "▾" : "▸"
-                            color: row.current ? theme.accent : theme.colors.dark_foreground
+                            color: row.current ? Theme.accent : Theme.colors.dark_foreground
 
                             MouseArea {
                                 anchors.fill: parent
@@ -308,8 +311,8 @@ Panel {
                             x: row.isGroup ? marker.width : row.depth * 14
                             width: parent.width - x
                             text: row.name
-                            color: row.frozen ? theme.colors.yellow
-                                 : row.current ? theme.accent : row.isGroup || row.depth === 0 ? theme.colors.bright_foreground : theme.colors.foreground
+                            color: row.frozen ? Theme.colors.yellow
+                                 : row.current ? Theme.accent : row.isGroup || row.depth === 0 ? Theme.colors.bright_foreground : Theme.colors.foreground
                             font.bold: row.current || row.isGroup
                             elide: Text.ElideRight
                         }
@@ -328,7 +331,7 @@ Panel {
                         visible: root.shown[5]
                         horizontalAlignment: Text.AlignRight
                         text: root.number(row.cpu, 1)
-                        color: row.cpu >= 80 ? theme.colors.red : row.cpu >= 25 ? theme.colors.yellow
+                        color: row.cpu >= 80 ? Theme.colors.red : row.cpu >= 25 ? Theme.colors.yellow
                              : row.cpu >= 1 ? row.text : row.quiet
                     }
                     Label {
@@ -336,24 +339,24 @@ Panel {
                         visible: root.shown[6]
                         horizontalAlignment: Text.AlignRight
                         text: root.number(row.gpu, 1)
-                        color: row.gpu >= 80 ? theme.colors.red : row.gpu >= 25 ? theme.colors.yellow
+                        color: row.gpu >= 80 ? Theme.colors.red : row.gpu >= 25 ? Theme.colors.yellow
                              : row.gpu >= 1 ? row.text : row.quiet
                     }
-                    Label { width: root.columnWidth(7); visible: root.shown[7]; horizontalAlignment: Text.AlignRight; text: monitor.bytes(row.memory); color: row.text }
+                    Label { width: root.columnWidth(7); visible: root.shown[7]; horizontalAlignment: Text.AlignRight; text: Monitor.bytes(row.memory); color: row.text }
                     Label {
                         width: root.columnWidth(8)
                         visible: root.shown[8]
                         horizontalAlignment: Text.AlignRight
                         // A dash, not zero, where the kernel won't tell us.
-                        text: row.readRate < 0 ? "–" : row.readRate === 0 ? "0" : monitor.rate(row.readRate)
-                        color: row.readRate > 0 ? theme.colors.green : row.quiet
+                        text: row.readRate < 0 ? "–" : row.readRate === 0 ? "0" : Monitor.rate(row.readRate)
+                        color: row.readRate > 0 ? Theme.colors.green : row.quiet
                     }
                     Label {
                         width: root.columnWidth(9)
                         visible: root.shown[9]
                         horizontalAlignment: Text.AlignRight
-                        text: row.writeRate < 0 ? "–" : row.writeRate === 0 ? "0" : monitor.rate(row.writeRate)
-                        color: row.writeRate > 0 ? theme.colors.red : row.quiet
+                        text: row.writeRate < 0 ? "–" : row.writeRate === 0 ? "0" : Monitor.rate(row.writeRate)
+                        color: row.writeRate > 0 ? Theme.colors.red : row.quiet
                     }
                 }
 
@@ -372,7 +375,7 @@ Panel {
                 anchors.centerIn: parent
                 visible: list.count === 0
                 text: root.model.filter.length > 0 ? qsTr("Nothing matches “%1”").arg(root.model.filter) : ""
-                color: theme.colors.dark_foreground
+                color: Theme.colors.dark_foreground
             }
         }
     }

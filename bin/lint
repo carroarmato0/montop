@@ -1,0 +1,11 @@
+#!/bin/sh
+# Checks the QML with qmllint against the Montop module the build generates
+# (build/qml/Montop), so types, properties and imports are all known. Any
+# warning fails.
+set -eu
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+"$ROOT/bin/build" >/dev/null
+
+"$(qmake6 -query QT_HOST_BINS)/qmllint" --max-warnings 0 -I "$ROOT/build/qml" "$ROOT"/src/*.qml
+echo "qmllint: no warnings"

@@ -41,5 +41,8 @@ jobs:
       - name: Build
         run: su tester -c bin/build
 
+      - name: Lint QML
+        run: su tester -c bin/lint
+
       - name: Test
         run: su tester -c 'LANG=en_US.UTF-8 bin/test'

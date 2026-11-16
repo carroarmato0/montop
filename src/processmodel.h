@@ -4,6 +4,7 @@
 #include <QList>
 #include <QSet>
 #include <QString>
+#include <QtQml/qqmlregistration.h>
 
 struct ProcessInfo {
     int pid = 0;
@@ -59,6 +60,8 @@ struct GroupInfo {
 // the list keeps its scroll position and selection while numbers move.
 class ProcessModel : public QAbstractListModel {
     Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Owned by the monitor")
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
     Q_PROPERTY(int total READ total NOTIFY countChanged)
     Q_PROPERTY(int groupCount READ groupCount NOTIFY countChanged)

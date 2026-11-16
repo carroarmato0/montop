@@ -4,7 +4,6 @@
 #include <QFontDatabase>
 #include <QIcon>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
 #include <QQuickStyle>
 #include <QTextStream>
 #include <QUrl>
@@ -13,6 +12,7 @@
 #include "monitor.h"
 #include "version.h"
 #include "sparkline.h"
+#include "qmlsingletons.h"
 #include "theme.h"
 #include "translator.h"
 
@@ -44,9 +44,6 @@ int main(int argc, char *argv[]) {
     app.setWindowIcon(QIcon::fromTheme("montop"));
 
     QQuickStyle::setStyle("Material");
-    qmlRegisterType<Sparkline>("Montop", 1, 0, "Sparkline");
-    qmlRegisterUncreatableType<ProcessModel>("Montop", 1, 0, "ProcessModel", "Owned by the monitor");
-
     // Installed before anything is translated, and every qsTr() binding is
     // re-evaluated when the Omarchy language changes.
     Translator translator;
@@ -65,9 +62,11 @@ int main(int argc, char *argv[]) {
 
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
-    engine.rootContext()->setContextProperty("translator", &translator);
-    engine.rootContext()->setContextProperty("theme", &theme);
-    engine.rootContext()->setContextProperty("monitor", &monitor);
+    // The QML module Montop hands these out as its Translator, Theme and
+    // Monitor singletons (qmlsingletons.h).
+    TranslatorSingleton::instance = &translator;
+    ThemeSingleton::instance = &theme;
+    MonitorSingleton::instance = &monitor;
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty())
         return 1;

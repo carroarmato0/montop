@@ -4,6 +4,7 @@
 #include <QList>
 #include <QPointer>
 #include <QQuickItem>
+#include <QtQml/qqmlregistration.h>
 
 #include "monitor.h"
 
@@ -19,6 +20,7 @@
 // motion without redrawing the window at the display's full rate.
 class Sparkline : public QQuickItem {
     Q_OBJECT
+    QML_ELEMENT
     // Reads `series` (and `mirrorSeries`) from the monitor on every sample.
     Q_PROPERTY(Monitor *source READ source WRITE setSource NOTIFY changed)
     Q_PROPERTY(QString series MEMBER m_series WRITE setSeries NOTIFY changed)

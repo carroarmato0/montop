@@ -1,13 +1,16 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Montop
 
 // Every shortcut, one keypress away (?), as in every Omarchy app.
 Rectangle {
     id: overlay
     signal closed
 
-    color: Qt.rgba(0, 0, 0, theme.dark ? 0.6 : 0.35)
+    color: Qt.rgba(0, 0, 0, Theme.dark ? 0.6 : 0.35)
 
     MouseArea {
         anchors.fill: parent
@@ -41,17 +44,17 @@ Rectangle {
         anchors.centerIn: parent
         width: grid.implicitWidth + 48
         height: grid.implicitHeight + heading.height + 56
-        color: theme.colors.lighter_background
+        color: Theme.colors.lighter_background
         border.width: 1
-        border.color: theme.accent
-        radius: theme.radius
+        border.color: Theme.accent
+        radius: Theme.radius
 
         Label {
             id: heading
             x: 24
             y: 20
             text: qsTr("Shortcuts")
-            color: theme.accent
+            color: Theme.accent
             font.bold: true
             font.pixelSize: 15
         }
@@ -71,7 +74,7 @@ Rectangle {
                     required property int index
                     readonly property var entry: overlay.shortcuts[Math.floor(index / 2)]
                     text: entry[index % 2]
-                    color: index % 2 === 0 ? theme.colors.bright_foreground : theme.colors.foreground
+                    color: index % 2 === 0 ? Theme.colors.bright_foreground : Theme.colors.foreground
                     font.bold: index % 2 === 0
                 }
             }

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Montop
 
 Panel {
     id: root
@@ -15,11 +16,11 @@ Panel {
         // Reads above the line, writes below, on one scale per device. The
         // model is a count so delegates live on between samples.
         Repeater {
-            model: monitor.disks.length
+            model: Monitor.disks.length
             delegate: ColumnLayout {
                 id: disk
                 required property int index
-                readonly property var info: monitor.disks[index] || ({})
+                readonly property var info: Monitor.disks[index] || ({})
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -35,24 +36,24 @@ Panel {
                         // the name is cut short rather than run under the rates.
                         clip: true
                         spacing: 8
-                        Label { text: disk.info.name || ""; color: theme.colors.bright_foreground }
+                        Label { text: disk.info.name || ""; color: Theme.colors.bright_foreground }
                         Label {
                             // Gives way first when the row runs out of room.
                             Layout.fillWidth: true
                             Layout.preferredWidth: 0
                             text: disk.info.model || ""
-                            color: theme.colors.dark_foreground
+                            color: Theme.colors.dark_foreground
                             elide: Text.ElideRight
                         }
                     }
-                    Label { text: "▲ " + monitor.rate(disk.info.readRate || 0); color: theme.colors.green }
-                    Label { text: "▼ " + monitor.rate(disk.info.writeRate || 0); color: theme.colors.red }
+                    Label { text: "▲ " + Monitor.rate(disk.info.readRate || 0); color: Theme.colors.green }
+                    Label { text: "▼ " + Monitor.rate(disk.info.writeRate || 0); color: Theme.colors.red }
                     Label {
                         // Gives way, with an ellipsis, when the rates need the room.
                         Layout.minimumWidth: 0
                         Layout.preferredWidth: implicitWidth
                         text: qsTr("%1% busy").arg(Math.round((disk.info.busy || 0) * 100))
-                        color: theme.colors.dark_foreground
+                        color: Theme.colors.dark_foreground
                         elide: Text.ElideRight
                     }
                 }
@@ -63,18 +64,18 @@ Panel {
                     series: "disk/" + (disk.info.name || "") + "/read"
                     mirrorSeries: "disk/" + (disk.info.name || "") + "/write"
                     blame: "io"
-                    color: theme.colors.green
-                    mirrorColor: theme.colors.red
+                    color: Theme.colors.green
+                    mirrorColor: Theme.colors.red
                 }
             }
         }
 
         Repeater {
-            model: monitor.filesystems.length
+            model: Monitor.filesystems.length
             delegate: RowLayout {
                 id: filesystem
                 required property int index
-                readonly property var info: monitor.filesystems[index] || ({})
+                readonly property var info: Monitor.filesystems[index] || ({})
 
                 Layout.fillWidth: true
                 spacing: 10
@@ -82,7 +83,7 @@ Panel {
                 Label {
                     Layout.preferredWidth: 100
                     text: filesystem.info.path || ""
-                    color: theme.colors.dark_foreground
+                    color: Theme.colors.dark_foreground
                     elide: Text.ElideMiddle
                 }
                 Meter {
@@ -90,8 +91,8 @@ Panel {
                     value: filesystem.info.share || 0
                 }
                 Label {
-                    text: qsTr("%1 of %2").arg(monitor.bytes(filesystem.info.used || 0)).arg(monitor.bytes(filesystem.info.total || 0))
-                    color: theme.colors.foreground
+                    text: qsTr("%1 of %2").arg(Monitor.bytes(filesystem.info.used || 0)).arg(Monitor.bytes(filesystem.info.total || 0))
+                    color: Theme.colors.foreground
                 }
             }
         }
