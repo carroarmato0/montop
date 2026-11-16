@@ -1,7 +1,7 @@
 # Maintainer: Christophe Vanlancker <carroarmato0@gmail.com>
 
 pkgname=montop
-pkgver=0.5.0
+pkgver=0.5.1
 pkgrel=1
 pkgdesc='A system monitor for Omarchy that shows apps, not just processes'
 url='https://github.com/carroarmato0/montop'
