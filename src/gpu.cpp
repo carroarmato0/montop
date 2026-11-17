@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <algorithm>
+#include <cmath>
 
 #include <dirent.h>
 #include <dlfcn.h>
@@ -466,6 +467,8 @@ void Gpus::sampleDevice(Device &d, Previous &previous, qint64 nowMs) {
         d.mhz = readNumber(m_sys + "/class/drm/" + d.card + "/gt_act_freq_mhz");
     } else if (d.driver == "xe") {
         d.mhz = readNumber(d.path + "/tile0/gt0/freq0/act_freq");
+    } else if (d.driver == "asahi") {
+        sampleAgx(d, previous, nowMs);
     }
     if (d.busy < 0 && d.perApp)
         d.busy = m_clientBusy.value(d.path, 0);
@@ -506,8 +509,58 @@ void Gpus::sampleDevice(Device &d, Previous &previous, qint64 nowMs) {
             }
         }
     }
-    if (d.busy < 0)
+    // agx_stats needs a second reading before it says anything.
+    if (d.busy < 0 && previous.agxBusyNs < 0)
         d.note = tr("Its driver doesn't report how busy it is.");
+}
+
+// Apple's GPU (Asahi) has no busy percentage, but newer kernels keep a
+// cumulative busy time and the power draw in agx_stats, as "key value"
+// lines. The counter is published about once a second, so the share is
+// taken over at least 0.9 s (a shorter window reads 0 or a spike) and
+// smoothed over about 2 s, as YASSM does on the same hardware.
+void Gpus::sampleAgx(Device &d, Previous &previous, qint64 nowMs) {
+    const QByteArray text = procfs::readFile(d.path + "/agx_stats", 4096);
+    if (text.isEmpty()) {
+        previous.agxBusyNs = previous.agxBusy = -1;
+        return;
+    }
+    double busyNs = -1, milliwatts = -1;
+    for (const QByteArray &line : text.split('\n')) {
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        if (fields.size() < 2)
+            continue;
+        bool ok = false;
+        const double value = fields[1].toDouble(&ok);
+        if (!ok)
+            continue;
+        if (fields[0] == "busy_ns")
+            busyNs = value;
+        else if (fields[0] == "power_mw")
+            milliwatts = value;
+    }
+    if (milliwatts >= 0)
+        d.watts = milliwatts / 1000.0;
+    if (busyNs < 0) {
+        previous.agxBusyNs = previous.agxBusy = -1;
+        return;
+    }
+    // First reading, or the counter went back (driver reloaded): a new baseline.
+    if (previous.agxBusyNs < 0 || busyNs < previous.agxBusyNs) {
+        previous.agxBusyNs = busyNs;
+        previous.agxAt = nowMs;
+        previous.agxBusy = -1;
+        return;
+    }
+    const qint64 elapsed = nowMs - previous.agxAt;
+    if (elapsed >= 900) {
+        const double instant = std::clamp((busyNs - previous.agxBusyNs) / (elapsed * 1e6), 0.0, 1.0);
+        const double alpha = 1 - std::exp(-elapsed / 2000.0);
+        previous.agxBusy = previous.agxBusy < 0 ? instant : previous.agxBusy + alpha * (instant - previous.agxBusy);
+        previous.agxBusyNs = busyNs;
+        previous.agxAt = nowMs;
+    }
+    d.busy = previous.agxBusy;
 }
 
 void Gpus::setClientTotals(const QHash<QString, QHash<QString, double>> &shares, const QHash<QString, quint64> &memory) {

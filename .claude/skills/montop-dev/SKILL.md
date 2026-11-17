@@ -84,8 +84,9 @@ specific to Montop.
   per scan on a desktop with 330 processes.
 - Hardware without a test machine is covered by sysfs/fdinfo fixtures in
   `tests/montop_tests.cpp` (`readsGpuDevices`, `monitorPutsGpuUsageDownToApps`,
-  `namesArmMachines`). Apple Silicon (Asahi) reports no GPU usage and no CPU
-  temperature; the window says so rather than showing zeros.
+  `namesArmMachines`, `readsAppleGpuStats`). Apple Silicon (Asahi) reports GPU
+  busy time and power in `device/agx_stats` on newer kernels (no per-app usage),
+  and no CPU temperature; the window says so rather than showing zeros.
 
 ## Version and release
 

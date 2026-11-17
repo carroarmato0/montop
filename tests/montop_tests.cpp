@@ -588,6 +588,52 @@ private slots:
         QCOMPARE(bare.devices()[2].name, QString("NVIDIA GeForce GTX 1080")); // From the PCI ids.
     }
 
+    void readsAppleGpuStats()
+    {
+        QTemporaryDir dir;
+        const QString sys = dir.filePath("sys");
+        const QString agx = gpuDevice(sys, "platform/soc/206400000.gpu", 1, 128, "DRIVER=asahi\n");
+        auto stats = [&](quint64 busyNs) {
+            write(agx + "/agx_stats", QString("busy_ns %1\npower_mw 4200\njobs 12\npstate 3\nutil1 9\n").arg(busyNs).toUtf8());
+        };
+        stats(5000000000ULL);
+        gpu::Gpus gpus(sys, dir.filePath("pci.ids"));
+        gpus.sample(1000);
+        const gpu::Device &apple = gpus.devices().first();
+        QCOMPARE(apple.busy, -1.0); // A baseline only.
+        QCOMPARE(apple.watts, 4.2);
+        QVERIFY(apple.note.isEmpty());
+        QVERIFY(!apple.perApp);
+
+        // Too soon after the last reading: nothing new yet.
+        stats(5100000000ULL);
+        gpus.sample(1250);
+        QCOMPARE(gpus.devices().first().busy, -1.0);
+        // 0.25 s busy in a second, once the window is long enough.
+        stats(5250000000ULL);
+        gpus.sample(2000);
+        QVERIFY(qAbs(gpus.devices().first().busy - 0.25) < 1e-9);
+        // Kept between publications, then eased towards the new share.
+        gpus.sample(2250);
+        QVERIFY(qAbs(gpus.devices().first().busy - 0.25) < 1e-9);
+        stats(6250000000ULL);
+        gpus.sample(3000);
+        const double busy = gpus.devices().first().busy;
+        QVERIFY(busy > 0.25 && busy < 1.0);
+
+        // The counter going back (driver reloaded) starts over.
+        stats(1000);
+        gpus.sample(4000);
+        QCOMPARE(gpus.devices().first().busy, -1.0);
+
+        // A kernel without agx_stats: as before, no usage and a note.
+        QFile::remove(agx + "/agx_stats");
+        gpus.sample(5000);
+        QCOMPARE(gpus.devices().first().busy, -1.0);
+        QCOMPARE(gpus.devices().first().watts, -1.0);
+        QVERIFY(!gpus.devices().first().note.isEmpty());
+    }
+
     void monitorPutsGpuUsageDownToApps()
     {
         QTemporaryDir root;

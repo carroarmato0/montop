@@ -165,7 +165,7 @@ such as the terminal you started it from.
 | Intel (`i915`, `xe`) | its busiest engine | yes | clock; sensors on discrete cards |
 | NVIDIA (proprietary driver) | through NVIDIA's NVML library, loaded if installed | yes | VRAM, clock, temperature, power, fan |
 | Snapdragon (Adreno), Mali | its busiest engine | yes | clock |
-| Apple Silicon (Asahi Linux) | not reported by its driver | no | none |
+| Apple Silicon (Asahi Linux) | its busy counter in `agx_stats`, on kernels that have it | no | power |
 
 Per-app usage comes from the kernel's per-client counters in
 `/proc/<pid>/fdinfo` (NVML for NVIDIA), so it covers your own processes. A GPU%

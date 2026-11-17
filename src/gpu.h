@@ -9,7 +9,8 @@
 // /proc/<pid>/fdinfo (Intel, AMD, Adreno, Mali, ...), each driver's own
 // counters in sysfs for the whole device, and NVIDIA's NVML library for its
 // proprietary driver, which reports nothing to the kernel's files. Apple's
-// GPU on Asahi Linux reports no usage at all, so it's named but not measured.
+// GPU on Asahi Linux keeps a busy counter and its power draw in agx_stats,
+// on kernels that have it; per-app usage it doesn't report.
 namespace gpu {
 
 // One DRM client, an open GPU file, as its fdinfo describes it.
@@ -98,9 +99,13 @@ private:
         double energy = -1;    // µJ
         void *nvml = nullptr;  // NVML's handle for the device.
         qint64 sensorsAt = -1; // When NVML's slower facts were last read.
+        double agxBusyNs = -1; // agx_stats' busy counter at agxAt.
+        qint64 agxAt = -1;
+        double agxBusy = -1;   // Smoothed share, kept between publications.
     };
     void discover(const QString &pciIds);
     void sampleDevice(Device &device, Previous &previous, qint64 nowMs);
+    void sampleAgx(Device &device, Previous &previous, qint64 nowMs);
     Nvml *nvml();
 
     QString m_sys;
