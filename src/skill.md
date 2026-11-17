@@ -60,7 +60,7 @@ command's own code. Use it to answer "how much memory does this build need",
   temperature, power, and fan where known. `asleep: true` is a discrete GPU
   powered down because nothing uses it: that is normal, not a fault. A `note`
   says why numbers are missing (Apple's GPU on Asahi Linux reports none on
-  kernels without `agx_stats`).
+  kernels without `agx_stats`, which so far come from the Aurora fork).
 - `gpu_percent` on apps and processes is of one GPU, from each driver's
   per-client counters (NVIDIA's through NVML); it's there when `per_app` is
   true for a GPU. Video playback and encoding show up here too.

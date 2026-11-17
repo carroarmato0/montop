@@ -85,7 +85,8 @@ specific to Montop.
 - Hardware without a test machine is covered by sysfs/fdinfo fixtures in
   `tests/montop_tests.cpp` (`readsGpuDevices`, `monitorPutsGpuUsageDownToApps`,
   `namesArmMachines`, `readsAppleGpuStats`). Apple Silicon (Asahi) reports GPU
-  busy time and power in `device/agx_stats` on newer kernels (no per-app usage),
+  busy time, power and clock in `device/agx_stats`, and memory in `gpu_memory`,
+  on the Aurora fork of its kernel (aurora-silicon/linux; no per-app usage),
   and no CPU temperature; the window says so rather than showing zeros.
 
 ## Version and release

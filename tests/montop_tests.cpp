@@ -597,11 +597,15 @@ private slots:
             write(agx + "/agx_stats", QString("busy_ns %1\npower_mw 4200\njobs 12\npstate 3\nutil1 9\n").arg(busyNs).toUtf8());
         };
         stats(5000000000ULL);
+        write(agx + "/gpu_memory", "user_committed 900000000\nuser_resident 734003200\nkernel_resident 52428800\n"
+                                   "limit 17179869184\nclient_limit 0\nrefused 0\nuser_kept 0\n");
         gpu::Gpus gpus(sys, dir.filePath("pci.ids"));
         gpus.sample(1000);
         const gpu::Device &apple = gpus.devices().first();
         QCOMPARE(apple.busy, -1.0); // A baseline only.
         QCOMPARE(apple.watts, 4.2);
+        QCOMPARE(apple.appMemory, 734003200.0);
+        QCOMPARE(apple.mhz, -1.0); // No frequency key on this kernel.
         QVERIFY(apple.note.isEmpty());
         QVERIFY(!apple.perApp);
 
@@ -621,6 +625,16 @@ private slots:
         const double busy = gpus.devices().first().busy;
         QVERIFY(busy > 0.25 && busy < 1.0);
 
+        // Newer kernels add the clock; newer firmware may not know the rest.
+        write(agx + "/agx_stats", "busy_ns 6250000000\npower_mw unsupported\nrequested_frequency_hz 1398000000\n"
+                                  "achieved_frequency_hz unsupported\n");
+        gpus.sample(3500);
+        QCOMPARE(gpus.devices().first().mhz, 1398.0);
+        QCOMPARE(gpus.devices().first().watts, -1.0);
+        write(agx + "/agx_stats", "busy_ns 6250000000\nachieved_frequency_hz 1260000000\n");
+        gpus.sample(3600);
+        QCOMPARE(gpus.devices().first().mhz, 1260.0);
+
         // The counter going back (driver reloaded) starts over.
         stats(1000);
         gpus.sample(4000);
@@ -628,9 +642,11 @@ private slots:
 
         // A kernel without agx_stats: as before, no usage and a note.
         QFile::remove(agx + "/agx_stats");
+        QFile::remove(agx + "/gpu_memory");
         gpus.sample(5000);
         QCOMPARE(gpus.devices().first().busy, -1.0);
         QCOMPARE(gpus.devices().first().watts, -1.0);
+        QCOMPARE(gpus.devices().first().appMemory, -1.0);
         QVERIFY(!gpus.devices().first().note.isEmpty());
     }
 

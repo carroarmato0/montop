@@ -518,14 +518,24 @@ void Gpus::sampleDevice(Device &d, Previous &previous, qint64 nowMs) {
 // cumulative busy time and the power draw in agx_stats, as "key value"
 // lines. The counter is published about once a second, so the share is
 // taken over at least 0.9 s (a shorter window reads 0 or a spike) and
-// smoothed over about 2 s, as YASSM does on the same hardware.
+// smoothed over about 2 s, as YASSM does on the same hardware. Both files
+// come from the Aurora fork of the Asahi kernel; on firmware that can't
+// report a value it reads "unsupported", which is skipped like a missing key.
 void Gpus::sampleAgx(Device &d, Previous &previous, qint64 nowMs) {
+    // What the apps' GPU buffers hold in RAM, in bytes.
+    for (const QByteArray &line : procfs::readFile(d.path + "/gpu_memory", 4096).split('\n')) {
+        const QList<QByteArray> fields = line.simplified().split(' ');
+        bool ok = false;
+        const double value = fields.size() >= 2 ? fields[1].toDouble(&ok) : 0;
+        if (ok && fields[0] == "user_resident")
+            d.appMemory = value;
+    }
     const QByteArray text = procfs::readFile(d.path + "/agx_stats", 4096);
     if (text.isEmpty()) {
         previous.agxBusyNs = previous.agxBusy = -1;
         return;
     }
-    double busyNs = -1, milliwatts = -1;
+    double busyNs = -1, milliwatts = -1, achievedHz = -1, requestedHz = -1;
     for (const QByteArray &line : text.split('\n')) {
         const QList<QByteArray> fields = line.simplified().split(' ');
         if (fields.size() < 2)
@@ -538,9 +548,18 @@ void Gpus::sampleAgx(Device &d, Previous &previous, qint64 nowMs) {
             busyNs = value;
         else if (fields[0] == "power_mw")
             milliwatts = value;
+        else if (fields[0] == "achieved_frequency_hz")
+            achievedHz = value;
+        else if (fields[0] == "requested_frequency_hz")
+            requestedHz = value;
     }
-    if (milliwatts >= 0)
+    // The firmware reports 0 before its first power reading.
+    if (milliwatts > 0)
         d.watts = milliwatts / 1000.0;
+    // The clock it runs at where the firmware says so, or else the one it asked for.
+    const double hz = achievedHz >= 0 ? achievedHz : requestedHz;
+    if (hz >= 0)
+        d.mhz = hz / 1e6;
     if (busyNs < 0) {
         previous.agxBusyNs = previous.agxBusy = -1;
         return;
