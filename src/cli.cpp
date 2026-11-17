@@ -515,7 +515,7 @@ QJsonObject snapshotJson(const Monitor &monitor, int top, const QString &sort) {
     for (const QVariant &d : monitor.disks()) {
         const QVariantMap disk = d.toMap();
         disks.append(QJsonObject{
-            {"name", disk["name"].toString()}, {"model", disk["model"].toString()},
+            {"id", disk["id"].toString()}, {"name", disk["name"].toString()}, {"model", disk["model"].toString()},
             {"read_bytes_per_second", std::round(disk["readRate"].toDouble())},
             {"write_bytes_per_second", std::round(disk["writeRate"].toDouble())},
             {"busy_percent", round1(disk["busy"].toDouble() * 100)},
@@ -525,6 +525,7 @@ QJsonObject snapshotJson(const Monitor &monitor, int top, const QString &sort) {
     for (const QVariant &f : monitor.filesystems()) {
         const QVariantMap fs = f.toMap();
         filesystems.append(QJsonObject{
+            {"id", fs["id"].toString()},
             {"path", fs["path"].toString()}, {"device", fs["device"].toString()}, {"type", fs["type"].toString()},
             {"total_bytes", fs["total"].toDouble()}, {"used_bytes", fs["used"].toDouble()},
             {"available_bytes", fs["available"].toDouble()}, {"used_percent", round1(fs["share"].toDouble() * 100)},

@@ -108,6 +108,7 @@ anywhere with cgroups v2, and falls back to plain processes without them.
 | `Space` | Pause or resume updates |
 | `+` / `-` | Sample less or more often (0.125 s to 4 s; 0.25 s by default) |
 | `1` – `6` | Show or hide CPU, memory, disks, network, apps, GPU |
+| `d` | Choose the disks and filesystems to show (or right-click one to hide it) |
 | `PgUp` `PgDn` / `g` `G` | Move a page / go to the first or last row |
 | `Shift K` | Show or hide kernel threads |
 | `q` | Quit |
@@ -116,7 +117,11 @@ CPU% is measured against one core, as in top and htop: an app busy on two cores
 shows 200.
 
 Montop remembers the panels you show, the sort, apps or every process, kernel
-threads, and the update speed, in `~/.config/montop/settings.conf`.
+threads, the update speed, and the disks and filesystems you hid, in
+`~/.config/montop/settings.conf`. A hidden disk is remembered by its WWID or
+serial number, and a filesystem by its UUID, so they stay hidden when `sdb`
+becomes `sdc` or a btrfs subvolume is mounted elsewhere. Hiding only affects the
+window: `montop snapshot` still reports every disk.
 
 ### From the command line
 

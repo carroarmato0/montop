@@ -224,6 +224,14 @@ private:
 
     QHash<QString, procfs::DiskCounters> m_prevDisks;
     QVariantList m_disks, m_filesystems;
+    // What the window hides a disk or filesystem by: names like sdb change
+    // between boots and plugs, these don't. See diskId() and filesystemIds().
+    QString m_dev;
+    QHash<QString, QString> m_diskIds;    // Kernel name to stable id.
+    QByteArray m_mountsText;              // The mounts the UUIDs were matched for.
+    QHash<QString, QString> m_uuidOf;     // Block device name ("sdc2", "dm-0") to filesystem UUID.
+    QString diskId(const QString &name);
+    QString blockName(const QString &device) const;
 
     QHash<QString, procfs::NetCounters> m_prevNet;
     QVariantList m_networks;

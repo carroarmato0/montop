@@ -23,6 +23,9 @@ needs a display.
    - `--sort memory|read|write|gpu` ranks by something else than CPU.
    - `--top N` lists more (0 lists all); `--interval MS` measures rates over a
      longer window, which helps when the load comes and goes.
+   - Disks and filesystems carry a stable `id` (a disk's WWID or serial, a
+     filesystem's UUID). The window can hide some, by these ids, in
+     `~/.config/montop/settings.conf`; the snapshot always lists them all.
 2. For the full picture of what is running, `montop apps --json` lists every
    app and service with its totals, its process IDs, and its top processes.
 3. Answer with the app first ("Brave is using 3 cores, mostly one tab's

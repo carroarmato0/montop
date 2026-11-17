@@ -154,5 +154,15 @@
   "User": "Gebruiker",
   "Montop runs inside %1, so it can't pause or limit it without pausing itself.": "Montop draait in %1, dus het kan dat niet pauzeren of beperken zonder zichzelf te pauzeren.",
   "Write/s": "Schrijven/s",
-  "your service": "eigen dienst"
+  "your service": "eigen dienst",
+  "%n hidden": {
+    "one": "%n verborgen",
+    "other": "%n verborgen"
+  },
+  "Hid %1. Press d to show it again.": "%1 verborgen. Druk op d om het weer te tonen.",
+  "Everything here is hidden. Press d to choose what to show.": "Alles hier is verborgen. Druk op d om te kiezen wat je ziet.",
+  "Disks to show": "Te tonen schijven",
+  "Space or a click shows or hides one. Montop remembers it, also when the disk's name changes.": "Spatie of een klik toont of verbergt er een. Montop onthoudt het, ook als de naam van de schijf verandert.",
+  "Filesystems": "Bestandssystemen",
+  "Choose the disks and filesystems to show": "Kies welke schijven en bestandssystemen je ziet"
 }
