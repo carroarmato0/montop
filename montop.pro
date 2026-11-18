@@ -7,7 +7,7 @@ TEMPLATE = app
 # The one place the version is set; a release also sets pkgver in the PKGBUILDs.
 # It reaches the code through a generated header rather than a define, so
 # changing it rebuilds what uses it.
-VERSION = 0.5.1
+VERSION = 0.5.2
 VERSION_HEADER = "$${LITERAL_HASH}pragma once" "$${LITERAL_HASH}define MONTOP_VERSION \"$$VERSION\""
 write_file($$OUT_PWD/version.h, VERSION_HEADER)
 INCLUDEPATH += $$OUT_PWD $$PWD/src
