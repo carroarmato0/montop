@@ -389,6 +389,31 @@ private slots:
                 QCOMPARE(d.toMap()["id"].toString(), QString("usb-SanDisk_Cruzer_4C53-0:0"));
     }
 
+    void standInRootGivesFilesystemSizes()
+    {
+        QTemporaryDir root;
+        const QString proc = root.filePath("proc"), sys = root.filePath("sys");
+        write(proc + "/meminfo", "MemTotal: 1000 kB\nMemAvailable: 600 kB\n");
+        write(proc + "/stat", "cpu  0 0 0 0 0 0 0 0\ncpu0 0 0 0 0 0 0 0 0\n");
+        // "/" exists everywhere, so statvfs() would answer for it with this
+        // machine's disk: the stand-in's own numbers must win.
+        write(proc + "/self/mounts", "/dev/nvme0n1p2 / ext4 rw 0 0\n/dev/nvme0n1p1 /boot vfat rw 0 0\n"
+                                     "/dev/sdb1 /mnt/my\\040backup ext4 rw 0 0\n/dev/sdc1 /nowhere/at/all ext4 rw 0 0\n");
+        write(root.filePath("statvfs"), "/ 1000 400 300\n/boot 2000 1500 1500\n/mnt/my backup 100 25 25\n");
+        Monitor monitor(proc, sys);
+        monitor.sample();
+        QHash<QString, QVariantMap> found;
+        for (const QVariant &f : monitor.filesystems())
+            found.insert(f.toMap()["path"].toString(), f.toMap());
+        QCOMPARE(found.size(), 3); // Not listed, and not a real directory either: left out.
+        QCOMPARE(found["/"]["total"].toDouble(), 1000.0);
+        QCOMPARE(found["/"]["used"].toDouble(), 600.0);
+        QCOMPARE(found["/"]["available"].toDouble(), 300.0);
+        QCOMPARE(found["/"]["share"].toDouble(), 600.0 / 900.0);
+        QCOMPARE(found["/boot"]["used"].toDouble(), 500.0);
+        QCOMPARE(found["/mnt/my backup"]["total"].toDouble(), 100.0);
+    }
+
     void leavesOutApplesInternalNamespaces()
     {
         QTemporaryDir root;
