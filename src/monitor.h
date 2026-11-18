@@ -231,6 +231,8 @@ private:
     QByteArray m_mountsText;              // The mounts the UUIDs were matched for.
     QHash<QString, QString> m_uuidOf;     // Block device name ("sdc2", "dm-0") to filesystem UUID.
     QString diskId(const QString &name);
+    bool appleInternal(const QString &name);
+    QHash<QString, bool> m_appleController; // Kernel name to: behind Apple's NVMe controller.
     QString blockName(const QString &device) const;
 
     QHash<QString, procfs::NetCounters> m_prevNet;

@@ -89,6 +89,9 @@ specific to Montop.
   `tests/montop_tests.cpp` (`readsGpuDevices`, `monitorPutsGpuUsageDownToApps`,
   `namesArmMachines`). Apple Silicon (Asahi) reports no GPU usage and no CPU
   temperature; the window says so rather than showing zeros.
+- Apple's SSD controller (`apple-nvme`, `*-nvme-ans2`) shows internal
+  namespaces besides nsid 1; `Monitor::appleInternal` leaves them out unless
+  partitioned, held or mounted (`leavesOutApplesInternalNamespaces`).
 
 ## Version and release
 

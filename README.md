@@ -180,7 +180,9 @@ the memory shown is what the apps' GPU buffers hold.
 **Arm and Macs.** Montop builds and runs its tests on Arm (`aarch64`) in CI. On
 Arm, the CPU panel names the machine (`Apple MacBook Air (M2, 2022)`) or the
 chip (`Snapdragon X1E80100`), and reads the CPU temperature from the SoC's
-thermal zones; Apple's chips report none on Linux, so none is shown. Intel Macs
+thermal zones; Apple's chips report none on Linux, so none is shown. The Disks
+panel leaves out the internal namespaces Apple's SSD shows Linux next to its
+main one (`nvme0n2`, `nvme0n3`), unless they're partitioned or in use. Intel Macs
 are ordinary Intel or AMD hardware to Montop.
 
 **Measuring a command.** `montop run` starts the command in a systemd scope of

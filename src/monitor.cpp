@@ -401,7 +401,7 @@ void Monitor::sampleDisks(double seconds) {
         if (name.startsWith("loop") || name.startsWith("ram") || name.startsWith("zram") || name.startsWith("dm-")
             || !counters.contains(name))
             continue;
-        if (readLine(block.filePath(name + "/size")).toULongLong() == 0)
+        if (readLine(block.filePath(name + "/size")).toULongLong() == 0 || appleInternal(name))
             continue;
         const DiskCounters now = counters.value(name);
         previous.insert(name, now);
@@ -429,6 +429,8 @@ void Monitor::sampleDisks(double seconds) {
     // A name gone may come back as another disk.
     for (auto it = m_diskIds.begin(); it != m_diskIds.end();)
         it = previous.contains(it.key()) ? std::next(it) : m_diskIds.erase(it);
+    for (auto it = m_appleController.begin(); it != m_appleController.end();)
+        it = counters.contains(it.key()) ? std::next(it) : m_appleController.erase(it);
     m_prevDisks = previous;
     m_physicalDevices = physical;
     m_disks = disks;
@@ -459,6 +461,36 @@ QString Monitor::diskId(const QString &name) {
         id = name;
     m_diskIds.insert(name, id);
     return id;
+}
+
+// Apple's SSD controller (Apple Silicon Macs on Asahi Linux) shows the
+// macOS side's internal namespaces as disks of their own: nvme0n2, nvme0n3.
+// Only namespace 1 is the disk Linux uses; another is left out unless it
+// has partitions or is in use (mounted, or under LUKS, LVM or RAID).
+bool Monitor::appleInternal(const QString &name) {
+    if (!name.startsWith("nvme"))
+        return false;
+    auto known = m_appleController.constFind(name);
+    if (known == m_appleController.constEnd()) {
+        bool apple = false;
+        for (const QByteArray &line : readFile(m_sys + "/block/" + name + "/device/device/uevent").split('\n')) {
+            if (line == "DRIVER=apple-nvme" || line == "DRIVER=nvme-apple"
+                || (line.startsWith("OF_COMPATIBLE_") && line.endsWith("nvme-ans2")))
+                apple = true;
+        }
+        known = m_appleController.insert(name, apple);
+    }
+    if (!*known)
+        return false;
+    const QString nsid = readLine(m_sys + "/block/" + name + "/nsid");
+    if (nsid.isEmpty() || nsid == "1")
+        return false;
+    const QDir disk(m_sys + "/block/" + name);
+    if (!disk.entryList({name + "p*"}, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+        return false;
+    if (!QDir(disk.filePath("holders")).entryList(QDir::Dirs | QDir::Files | QDir::System | QDir::NoDotAndDotDot).isEmpty())
+        return false;
+    return !readFile(m_proc + "/self/mounts").contains("/dev/" + name.toLatin1() + ' ');
 }
 
 // The block device a mount names: "/dev/mapper/root" is "dm-0".

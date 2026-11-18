@@ -389,6 +389,56 @@ private slots:
                 QCOMPARE(d.toMap()["id"].toString(), QString("usb-SanDisk_Cruzer_4C53-0:0"));
     }
 
+    void leavesOutApplesInternalNamespaces()
+    {
+        QTemporaryDir root;
+        const QString proc = root.filePath("proc"), sys = root.filePath("sys");
+        write(proc + "/meminfo", "MemTotal: 1000 kB\nMemAvailable: 600 kB\n");
+        write(proc + "/stat", "cpu  0 0 0 0 0 0 0 0\ncpu0 0 0 0 0 0 0 0 0\n");
+        write(proc + "/self/mounts", "");
+        QByteArray diskstats;
+        auto namespaces = [&](const QString &controller, const QByteArray &uevent, int count) {
+            write(sys + "/devices/platform/" + controller + "/uevent", uevent);
+            for (int n = 1; n <= count; ++n) {
+                const QString name = controller.section('.', 0, 0) + QString("n%1").arg(n);
+                write(sys + "/block/" + name + "/size", "1000\n");
+                write(sys + "/block/" + name + "/nsid", QByteArray::number(n) + "\n");
+                QDir().mkpath(sys + "/block/" + name + "/device");
+                QFile::link(sys + "/devices/platform/" + controller, sys + "/block/" + name + "/device/device");
+                diskstats += "259 0 " + name.toLatin1() + " 0 0 0 0 0 0 0 0 0 0 0\n";
+            }
+        };
+        // Apple's controller, three namespaces (as on an M2 Pro MacBook Pro);
+        // another vendor's, two.
+        namespaces("nvme0.ans", "DRIVER=nvme-apple\nOF_NAME=nvme\nOF_FULLNAME=/soc/nvme@34bcc0000\n"
+                                "OF_COMPATIBLE_0=apple,t6020-nvme-ans2\nOF_COMPATIBLE_1=apple,t8103-nvme-ans2\n"
+                                "OF_COMPATIBLE_2=apple,nvme-ans2\nOF_COMPATIBLE_N=3\n", 3);
+        namespaces("nvme1.pci", "DRIVER=nvme\nPCI_SLOT_NAME=0000:01:00.0\n", 2);
+        write(proc + "/diskstats", diskstats);
+        auto names = [](Monitor &m) {
+            QStringList list;
+            for (const QVariant &d : m.disks())
+                list << d.toMap()["name"].toString();
+            list.sort();
+            return list;
+        };
+
+        Monitor monitor(proc, sys);
+        monitor.sample();
+        QCOMPARE(names(monitor), QStringList({"nvme0n1", "nvme1n1", "nvme1n2"}));
+
+        // In use, an internal namespace is a disk like any other.
+        QDir().mkpath(sys + "/block/nvme0n2/nvme0n2p1");
+        QDir().mkpath(sys + "/block/nvme0n3/holders/dm-1");
+        monitor.sample();
+        QCOMPARE(names(monitor), QStringList({"nvme0n1", "nvme0n2", "nvme0n3", "nvme1n1", "nvme1n2"}));
+        QDir(sys + "/block/nvme0n2/nvme0n2p1").removeRecursively();
+        QDir(sys + "/block/nvme0n3/holders/dm-1").removeRecursively();
+        write(proc + "/self/mounts", "/dev/nvme0n3 /mnt ext4 rw 0 0\n");
+        monitor.sample();
+        QCOMPARE(names(monitor), QStringList({"nvme0n1", "nvme0n3", "nvme1n1", "nvme1n2"}));
+    }
+
     void monitorGroupsByCgroup()
     {
         QTemporaryDir root;
