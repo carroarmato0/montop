@@ -227,6 +227,19 @@ def setup():
     write(f"{SYS}/block/nvme0n1/dev", "259:0\n")
     write(f"{SYS}/block/nvme0n1/size", "2000409264\n")
     write(f"{SYS}/block/nvme0n1/device/model", "Samsung SSD 990 PRO 1TB\n")
+    write(f"{SYS}/block/nvme0n1/wwid", "eui.0025384b31a04c7e\n")
+    # A USB backup drive, plugged in and idle: the one hidden in disks.png.
+    # It has no WWID, so udev's by-id name (with its serial) stands for it.
+    write(f"{SYS}/block/sda/dev", "8:0\n")
+    write(f"{SYS}/block/sda/size", "3907029168\n")
+    write(f"{SYS}/block/sda/device/model", "Elements 25A3\n")
+    for target, links in (("sda", ["usb-WD_Elements_25A3_57584B314139383832374136-0:0"]),
+                          ("nvme0n1p2", ["../by-uuid/6f1c2a9e-4d7b-4e0a-9f3c-2b8d1e5a7c40"]),
+                          ("nvme0n1p1", ["../by-uuid/7A3E-1C52"])):
+        for link in links:
+            path = os.path.normpath(f"{ROOT}/dev/disk/by-id/{link}")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            os.symlink(f"../../{target}", path)
     write(f"{SYS}/class/net/wlan0/operstate", "up\n")
     write(f"{SYS}/class/hwmon/hwmon3/name", "k10temp\n")
     write(f"{SYS}/class/hwmon/hwmon3/temp1_label", "Tctl\n")
@@ -327,7 +340,8 @@ def tick(t, counters, alive):
     counters.disk_written += disk_written * TICK
     counters.disk_busy += min(1.0, (disk_read + disk_written) / 400e6 + 0.01) * TICK * 1000
     write(f"{PROC}/diskstats", f" 259 0 nvme0n1 812345 0 {int(counters.disk_read / 512)} 0 "
-                               f"923456 0 {int(counters.disk_written / 512)} 0 0 {int(counters.disk_busy)} 0 0 0 0 0 0 0\n")
+                               f"923456 0 {int(counters.disk_written / 512)} 0 0 {int(counters.disk_busy)} 0 0 0 0 0 0 0\n"
+                               "   8 0 sda 1204 0 98304 0 310 0 2048 0 0 1840 0 0 0 0 0 0 0\n")
 
     streaming = 6e6 if 0.35 < (t / 9) % 1 < 0.55 else 0.4e6   # Video arrives in bursts.
     rx = noisy(streaming + 120e3) + (25e6 if 60 < t < 72 else 0)  # A download early on.

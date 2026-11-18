@@ -32,8 +32,8 @@ ApplicationWindow {
     property alias showGpu: settings.showGpu
 
     // What you set stays set between runs, in ~/.config/montop/settings.conf:
-    // the panels shown, the sort, apps or every process, kernel threads, and
-    // how often to update. A pause, a filter, or a rewind is for the moment.
+    // the panels shown, the sort, apps or every process, kernel threads, how
+    // often to update, and the disks and filesystems hidden. A pause, a filter, or a rewind is for the moment.
     Settings {
         id: settings
         location: StandardPaths.writableLocation(StandardPaths.ConfigLocation) + "/montop/settings.conf"
@@ -49,6 +49,25 @@ ApplicationWindow {
         property bool grouped: true
         property bool kernelThreads: false
         property int interval: 250
+        // Stable ids (Monitor's "id"), not names like sdb that move around,
+        // one per line: a JS list would be saved as an unreadable blob, and
+        // some disks' ids hold spaces.
+        property string hiddenDisks: ""
+        property string hiddenFilesystems: ""
+    }
+    readonly property var hiddenDisks: settings.hiddenDisks.split("\n").filter(id => id.length > 0)
+    readonly property var hiddenFilesystems: settings.hiddenFilesystems.split("\n").filter(id => id.length > 0)
+    function isHidden(kind, id) {
+        return (kind === "disk" ? hiddenDisks : hiddenFilesystems).indexOf(id) >= 0
+    }
+    function setHidden(kind, id, hide) {
+        const list = (kind === "disk" ? hiddenDisks : hiddenFilesystems).filter(x => x !== id)
+        if (hide)
+            list.push(id)
+        if (kind === "disk")
+            settings.hiddenDisks = list.join("\n")
+        else
+            settings.hiddenFilesystems = list.join("\n")
     }
     Component.onCompleted: {
         const model = Monitor.processes
@@ -76,7 +95,7 @@ ApplicationWindow {
     readonly property bool gpuShown: showGpu && Monitor.gpus.length > 0
     // Single-letter shortcuts stand down while the filter has the keyboard
     // or a question is open, so typing doesn't kill processes.
-    readonly property bool typing: processes.filtering || confirm.visible || limiter.visible
+    readonly property bool typing: processes.filtering || confirm.visible || limiter.visible || storageChooser.visible
     readonly property bool leftColumn: showMemory || showDisks || showNetwork
 
     // The frame clock every graph shares: 0 when a sample lands, 1 when the
@@ -256,6 +275,7 @@ ApplicationWindow {
     Shortcut { sequence: "4"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.showNetwork = !win.showNetwork }
     Shortcut { sequence: "5"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.showProcesses = !win.showProcesses }
     Shortcut { sequence: "6"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: win.showGpu = !win.showGpu }
+    Shortcut { sequence: "D"; context: Qt.ApplicationShortcut; enabled: !win.typing; onActivated: storageChooser.open() }
 
     // Right-to-left languages mirror the window; the Translator sets the
     // application's layout direction.
@@ -349,6 +369,13 @@ ApplicationWindow {
                     }
                     DiskPanel {
                         visible: win.showDisks
+                        hiddenDisks: win.hiddenDisks
+                        hiddenFilesystems: win.hiddenFilesystems
+                        onHide: (kind, id, label) => {
+                            win.setHidden(kind, id, true)
+                            win.say(qsTr("Hid %1. Press d to show it again.").arg(label))
+                        }
+                        onChoose: storageChooser.open()
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         Layout.minimumHeight: 150
@@ -623,6 +650,125 @@ ApplicationWindow {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: limiter.apply(choice.modelData)
+                    }
+                }
+            }
+        }
+    }
+    // Which disks and filesystems the Disks panel shows. The list is taken
+    // when it opens, so rows don't move under the cursor while you choose.
+    Popup {
+        id: storageChooser
+
+        property var entries: []
+        function toggle(entry) {
+            win.setHidden(entry.kind, entry.id, !win.isHidden(entry.kind, entry.id))
+        }
+
+        anchors.centerIn: parent
+        modal: true
+        focus: true
+        padding: 20
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, Theme.dark ? 0.55 : 0.3) }
+        onAboutToShow: {
+            const list = []
+            for (const d of Monitor.disks)
+                list.push({ kind: "disk", id: d.id, label: d.name, detail: d.model })
+            for (const f of Monitor.filesystems)
+                list.push({ kind: "filesystem", id: f.id, label: f.path, detail: f.device })
+            entries = list
+        }
+        onOpened: {
+            storageList.currentIndex = 0
+            storageList.forceActiveFocus()
+        }
+
+        background: Rectangle {
+            color: Theme.colors.lighter_background
+            border.width: 1
+            border.color: Theme.accent
+            radius: Theme.radius
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            Label {
+                text: qsTr("Disks to show")
+                color: Theme.colors.bright_foreground
+                font.bold: true
+                font.pixelSize: 15
+            }
+            Label {
+                Layout.maximumWidth: 420
+                wrapMode: Text.Wrap
+                text: qsTr("Space or a click shows or hides one. Montop remembers it, also when the disk's name changes.")
+                color: Theme.colors.foreground
+            }
+            ListView {
+                id: storageList
+                Layout.fillWidth: true
+                Layout.preferredWidth: 420
+                Layout.preferredHeight: Math.min(contentHeight, win.height - 220)
+                clip: true
+                model: storageChooser.entries
+                keyNavigationEnabled: true
+                section.property: "kind"
+                section.delegate: Label {
+                    required property string section
+                    topPadding: 6
+                    bottomPadding: 2
+                    text: section === "disk" ? qsTr("Disks") : qsTr("Filesystems")
+                    color: Theme.colors.dark_foreground
+                }
+                Keys.onPressed: event => {
+                    if (event.key === Qt.Key_J) { incrementCurrentIndex(); event.accepted = true }
+                    else if (event.key === Qt.Key_K) { decrementCurrentIndex(); event.accepted = true }
+                    else if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (currentIndex >= 0)
+                            storageChooser.toggle(storageChooser.entries[currentIndex])
+                        event.accepted = true
+                    }
+                }
+                delegate: Rectangle {
+                    id: entry
+                    required property int index
+                    required property var modelData
+                    readonly property bool current: ListView.isCurrentItem
+                    readonly property bool shown: !win.isHidden(modelData.kind, modelData.id)
+                    width: ListView.view.width
+                    height: 26
+                    radius: Math.min(3, Theme.radius)
+                    color: current ? Theme.colors.selection : "transparent"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 10
+                        Label {
+                            text: entry.shown ? "[x]" : "[ ]"
+                            color: entry.shown ? Theme.accent : Theme.colors.dark_foreground
+                        }
+                        Label {
+                            text: entry.modelData.label
+                            color: entry.shown ? Theme.colors.bright_foreground : Theme.colors.dark_foreground
+                            font.bold: entry.current
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            text: entry.modelData.detail
+                            color: Theme.colors.dark_foreground
+                            elide: Text.ElideRight
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            storageList.currentIndex = entry.index
+                            storageChooser.toggle(entry.modelData)
+                        }
                     }
                 }
             }

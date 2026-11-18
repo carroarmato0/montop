@@ -59,10 +59,13 @@ specific to Montop.
 - Pause and limit act only on `app.slice` and `background.slice` units, never
   on `session.slice`, system services, or the unit Montop runs in. Keep the
   undo-on-close behaviour of the window.
-- The window's settings (panels, sort, grouping, kernel threads, interval)
-  are kept with QtCore's `Settings` in `~/.config/montop/settings.conf`
+- The window's settings (panels, sort, grouping, kernel threads, interval,
+  hidden disks and filesystems) are kept with QtCore's `Settings` in `~/.config/montop/settings.conf`
   (`Main.qml`); momentary state (pause, filter, rewind) isn't. A new setting
-  goes there too.
+  goes there too. A list goes in as a string, one item per line: a JS array
+  is saved as an unreadable `@Variant` blob. Hidden disks and filesystems are
+  kept by Monitor's stable `id` (WWID, by-id name, or filesystem UUID), never
+  by kernel name.
 - Screenshots and README examples come from the demo system, never from the
   user's machine: `tools/demo/screenshots.py` under
   `systemd-inhibit --what=idle`, hands off the mouse for four minutes.
@@ -86,6 +89,9 @@ specific to Montop.
   `tests/montop_tests.cpp` (`readsGpuDevices`, `monitorPutsGpuUsageDownToApps`,
   `namesArmMachines`). Apple Silicon (Asahi) reports no GPU usage and no CPU
   temperature; the window says so rather than showing zeros.
+- Apple's SSD controller (`apple-nvme`, `*-nvme-ans2`) shows internal
+  namespaces besides nsid 1; `Monitor::appleInternal` leaves them out unless
+  partitioned, held or mounted (`leavesOutApplesInternalNamespaces`).
 
 ## Version and release
 

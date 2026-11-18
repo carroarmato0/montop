@@ -327,6 +327,118 @@ private slots:
         QCOMPARE(model.keyAt(0), QString("p:21"));
     }
 
+    void namesDisksAndFilesystemsStably()
+    {
+        QTemporaryDir root;
+        const QString proc = root.filePath("proc"), sys = root.filePath("sys"), dev = root.filePath("dev");
+        write(proc + "/meminfo", "MemTotal: 1000 kB\nMemAvailable: 600 kB\n");
+        write(proc + "/stat", "cpu  0 0 0 0 0 0 0 0\ncpu0 0 0 0 0 0 0 0 0\n");
+        QByteArray diskstats;
+        for (const QString name : {"nvme0n1", "nvme0n2", "sda", "sdb", "sdc"}) {
+            write(sys + "/block/" + name + "/size", "1000\n");
+            diskstats += "8 0 " + name.toLatin1() + " 0 0 0 0 0 0 0 0 0 0 0\n";
+        }
+        write(proc + "/diskstats", diskstats);
+        // NVMe keeps a WWID per namespace beside the disk, SATA on the device.
+        write(sys + "/block/nvme0n1/wwid", "eui.0001\n");
+        write(sys + "/block/nvme0n2/wwid", "eui.0002\n");
+        write(sys + "/block/sda/device/wwid", "naa.5002538e4996a278\n");
+        // A USB drive has none: udev's name for it carries the serial.
+        QDir().mkpath(dev + "/disk/by-id");
+        QFile::link("../../sdb", dev + "/disk/by-id/usb-Kingston_DataTraveler_3.0_E0D55EA5-0:0");
+        QFile::link("../../sdb1", dev + "/disk/by-id/usb-Kingston_DataTraveler_3.0_E0D55EA5-0:0-part1");
+        QFile::link("../../sdb", dev + "/disk/by-id/wwn-0x0000");
+
+        // Filesystems by UUID, through /dev/mapper too; without one, by device.
+        QDir().mkpath(dev + "/disk/by-uuid");
+        QDir().mkpath(dev + "/mapper");
+        QFile::link("../dm-0", dev + "/mapper/root");
+        QFile::link("../../dm-0", dev + "/disk/by-uuid/f49bfb98-978f");
+        QFile::link("../../sdb1", dev + "/disk/by-uuid/2987-F065");
+        const QString a = root.filePath("a"), b = root.filePath("b"), c = root.filePath("c");
+        for (const QString &path : {a, b, c})
+            QDir().mkpath(path);
+        write(proc + "/self/mounts", QString("/dev/mapper/root %1 btrfs rw 0 0\n/dev/sdb1 %2 vfat rw 0 0\n"
+                                             "/dev/sdc1 %3 ext4 rw 0 0\n").arg(a, b, c).toUtf8());
+
+        Monitor monitor(proc, sys);
+        monitor.sample();
+        QHash<QString, QString> disks, filesystems;
+        for (const QVariant &d : monitor.disks())
+            disks.insert(d.toMap()["name"].toString(), d.toMap()["id"].toString());
+        for (const QVariant &f : monitor.filesystems())
+            filesystems.insert(f.toMap()["path"].toString(), f.toMap()["id"].toString());
+        QCOMPARE(disks.value("nvme0n1"), QString("eui.0001"));
+        QCOMPARE(disks.value("nvme0n2"), QString("eui.0002"));
+        QCOMPARE(disks.value("sda"), QString("naa.5002538e4996a278"));
+        QCOMPARE(disks.value("sdb"), QString("usb-Kingston_DataTraveler_3.0_E0D55EA5-0:0"));
+        QCOMPARE(disks.value("sdc"), QString("sdc"));
+        QCOMPARE(filesystems.value(a), QString("f49bfb98-978f"));
+        QCOMPARE(filesystems.value(b), QString("2987-F065"));
+        QCOMPARE(filesystems.value(c), QString("/dev/sdc1"));
+
+        // Another drive plugged in under the same name gets its own id.
+        write(proc + "/diskstats", "8 0 sda 0 0 0 0 0 0 0 0 0 0 0\n");
+        monitor.sample();
+        QFile::remove(dev + "/disk/by-id/usb-Kingston_DataTraveler_3.0_E0D55EA5-0:0");
+        QFile::link("../../sdb", dev + "/disk/by-id/usb-SanDisk_Cruzer_4C53-0:0");
+        write(proc + "/diskstats", diskstats);
+        monitor.sample();
+        for (const QVariant &d : monitor.disks())
+            if (d.toMap()["name"] == "sdb")
+                QCOMPARE(d.toMap()["id"].toString(), QString("usb-SanDisk_Cruzer_4C53-0:0"));
+    }
+
+    void leavesOutApplesInternalNamespaces()
+    {
+        QTemporaryDir root;
+        const QString proc = root.filePath("proc"), sys = root.filePath("sys");
+        write(proc + "/meminfo", "MemTotal: 1000 kB\nMemAvailable: 600 kB\n");
+        write(proc + "/stat", "cpu  0 0 0 0 0 0 0 0\ncpu0 0 0 0 0 0 0 0 0\n");
+        write(proc + "/self/mounts", "");
+        QByteArray diskstats;
+        auto namespaces = [&](const QString &controller, const QByteArray &uevent, int count) {
+            write(sys + "/devices/platform/" + controller + "/uevent", uevent);
+            for (int n = 1; n <= count; ++n) {
+                const QString name = controller.section('.', 0, 0) + QString("n%1").arg(n);
+                write(sys + "/block/" + name + "/size", "1000\n");
+                write(sys + "/block/" + name + "/nsid", QByteArray::number(n) + "\n");
+                QDir().mkpath(sys + "/block/" + name + "/device");
+                QFile::link(sys + "/devices/platform/" + controller, sys + "/block/" + name + "/device/device");
+                diskstats += "259 0 " + name.toLatin1() + " 0 0 0 0 0 0 0 0 0 0 0\n";
+            }
+        };
+        // Apple's controller, three namespaces (as on an M2 Pro MacBook Pro);
+        // another vendor's, two.
+        namespaces("nvme0.ans", "DRIVER=nvme-apple\nOF_NAME=nvme\nOF_FULLNAME=/soc/nvme@34bcc0000\n"
+                                "OF_COMPATIBLE_0=apple,t6020-nvme-ans2\nOF_COMPATIBLE_1=apple,t8103-nvme-ans2\n"
+                                "OF_COMPATIBLE_2=apple,nvme-ans2\nOF_COMPATIBLE_N=3\n", 3);
+        namespaces("nvme1.pci", "DRIVER=nvme\nPCI_SLOT_NAME=0000:01:00.0\n", 2);
+        write(proc + "/diskstats", diskstats);
+        auto names = [](Monitor &m) {
+            QStringList list;
+            for (const QVariant &d : m.disks())
+                list << d.toMap()["name"].toString();
+            list.sort();
+            return list;
+        };
+
+        Monitor monitor(proc, sys);
+        monitor.sample();
+        QCOMPARE(names(monitor), QStringList({"nvme0n1", "nvme1n1", "nvme1n2"}));
+
+        // In use, an internal namespace is a disk like any other.
+        QDir().mkpath(sys + "/block/nvme0n2/nvme0n2p1");
+        QDir().mkpath(sys + "/block/nvme0n3/holders/dm-1");
+        monitor.sample();
+        QCOMPARE(names(monitor), QStringList({"nvme0n1", "nvme0n2", "nvme0n3", "nvme1n1", "nvme1n2"}));
+        QDir(sys + "/block/nvme0n2/nvme0n2p1").removeRecursively();
+        QDir(sys + "/block/nvme0n3/holders/dm-1").removeRecursively();
+        write(proc + "/self/mounts", "/dev/nvme0n3 /mnt ext4 rw 0 0\n");
+        monitor.sample();
+        QCOMPARE(names(monitor), QStringList({"nvme0n1", "nvme0n3", "nvme1n1", "nvme1n2"}));
+    }
+
     void monitorGroupsByCgroup()
     {
         QTemporaryDir root;

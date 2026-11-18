@@ -32,6 +32,7 @@ Monitor::Monitor(const QString &procRoot, const QString &sysRoot, QObject *paren
         m_proc = root + "/proc";
         m_sys = root + "/sys";
     }
+    m_dev = m_proc == "/proc" ? QString("/dev") : m_proc + "/../dev";
     m_pageSize = sysconf(_SC_PAGESIZE);
     m_gpus = std::make_unique<gpu::Gpus>(m_sys);
     // From /proc, so a stand-in root under test brings its own.
@@ -400,7 +401,7 @@ void Monitor::sampleDisks(double seconds) {
         if (name.startsWith("loop") || name.startsWith("ram") || name.startsWith("zram") || name.startsWith("dm-")
             || !counters.contains(name))
             continue;
-        if (readLine(block.filePath(name + "/size")).toULongLong() == 0)
+        if (readLine(block.filePath(name + "/size")).toULongLong() == 0 || appleInternal(name))
             continue;
         const DiskCounters now = counters.value(name);
         previous.insert(name, now);
@@ -417,6 +418,7 @@ void Monitor::sampleDisks(double seconds) {
         // The model says more than "nvme0n1" to most people.
         const QString model = readLine(block.filePath(name + "/device/model"));
         disks.append(QVariantMap{
+            {"id", diskId(name)},
             {"name", name},
             {"model", model},
             {"readRate", readRate},
@@ -424,14 +426,95 @@ void Monitor::sampleDisks(double seconds) {
             {"busy", busy},
         });
     }
+    // A name gone may come back as another disk.
+    for (auto it = m_diskIds.begin(); it != m_diskIds.end();)
+        it = previous.contains(it.key()) ? std::next(it) : m_diskIds.erase(it);
+    for (auto it = m_appleController.begin(); it != m_appleController.end();)
+        it = counters.contains(it.key()) ? std::next(it) : m_appleController.erase(it);
     m_prevDisks = previous;
     m_physicalDevices = physical;
     m_disks = disks;
 }
 
+// A disk's own id: its WWID (NVMe keeps it beside the disk, SCSI and SATA
+// on the device), or else the name udev gives it in /dev/disk/by-id, which
+// carries the serial number of a USB drive, or else its kernel name.
+QString Monitor::diskId(const QString &name) {
+    const auto known = m_diskIds.constFind(name);
+    if (known != m_diskIds.constEnd())
+        return *known;
+    QString id = readLine(m_sys + "/block/" + name + "/wwid");
+    if (id.isEmpty())
+        id = readLine(m_sys + "/block/" + name + "/device/wwid");
+    if (id.isEmpty()) {
+        const QDir byId(m_dev + "/disk/by-id");
+        for (const QString &link : byId.entryList(QDir::System | QDir::Files | QDir::NoDotAndDotDot, QDir::Name)) {
+            if (link.contains("-part") || link.startsWith("wwn-") || link.startsWith("nvme-eui."))
+                continue;
+            if (QFileInfo(QFileInfo(byId.filePath(link)).symLinkTarget()).fileName() == name) {
+                id = link;
+                break;
+            }
+        }
+    }
+    if (id.isEmpty())
+        id = name;
+    m_diskIds.insert(name, id);
+    return id;
+}
+
+// Apple's SSD controller (Apple Silicon Macs on Asahi Linux) shows the
+// macOS side's internal namespaces as disks of their own: nvme0n2, nvme0n3.
+// Only namespace 1 is the disk Linux uses; another is left out unless it
+// has partitions or is in use (mounted, or under LUKS, LVM or RAID).
+bool Monitor::appleInternal(const QString &name) {
+    if (!name.startsWith("nvme"))
+        return false;
+    auto known = m_appleController.constFind(name);
+    if (known == m_appleController.constEnd()) {
+        bool apple = false;
+        for (const QByteArray &line : readFile(m_sys + "/block/" + name + "/device/device/uevent").split('\n')) {
+            if (line == "DRIVER=apple-nvme" || line == "DRIVER=nvme-apple"
+                || (line.startsWith("OF_COMPATIBLE_") && line.endsWith("nvme-ans2")))
+                apple = true;
+        }
+        known = m_appleController.insert(name, apple);
+    }
+    if (!*known)
+        return false;
+    const QString nsid = readLine(m_sys + "/block/" + name + "/nsid");
+    if (nsid.isEmpty() || nsid == "1")
+        return false;
+    const QDir disk(m_sys + "/block/" + name);
+    if (!disk.entryList({name + "p*"}, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+        return false;
+    if (!QDir(disk.filePath("holders")).entryList(QDir::Dirs | QDir::Files | QDir::System | QDir::NoDotAndDotDot).isEmpty())
+        return false;
+    return !readFile(m_proc + "/self/mounts").contains("/dev/" + name.toLatin1() + ' ');
+}
+
+// The block device a mount names: "/dev/mapper/root" is "dm-0".
+QString Monitor::blockName(const QString &device) const {
+    if (!device.startsWith("/dev/"))
+        return QString();
+    const QFileInfo node(m_dev + device.mid(4));
+    return node.isSymLink() ? QFileInfo(node.symLinkTarget()).fileName() : node.fileName();
+}
+
 void Monitor::sampleFilesystems() {
     QVariantList filesystems;
-    for (const Mount &mount : parseMounts(readFile(m_proc + "/self/mounts"))) {
+    const QByteArray mounts = readFile(m_proc + "/self/mounts");
+    // A filesystem's id is its UUID, so hiding it holds whichever of its
+    // mount points (btrfs subvolumes, bind mounts) the row is named after.
+    // Matched again only when something is mounted or unmounted.
+    if (mounts != m_mountsText) {
+        m_mountsText = mounts;
+        m_uuidOf.clear();
+        const QDir byUuid(m_dev + "/disk/by-uuid");
+        for (const QString &uuid : byUuid.entryList(QDir::System | QDir::Files | QDir::NoDotAndDotDot))
+            m_uuidOf.insert(QFileInfo(QFileInfo(byUuid.filePath(uuid)).symLinkTarget()).fileName(), uuid);
+    }
+    for (const Mount &mount : parseMounts(mounts)) {
         struct statvfs fs;
         if (statvfs(QFile::encodeName(mount.path).constData(), &fs) != 0 || fs.f_blocks == 0)
             continue;
@@ -439,6 +522,7 @@ void Monitor::sampleFilesystems() {
         const double available = double(fs.f_bavail) * fs.f_frsize;
         const double used = total - double(fs.f_bfree) * fs.f_frsize;
         filesystems.append(QVariantMap{
+            {"id", m_uuidOf.value(blockName(mount.device), mount.device)},
             {"path", mount.path}, {"device", mount.device}, {"type", mount.type},
             {"total", total}, {"used", used}, {"available", available},
             {"share", total > 0 ? used / (used + available) : 0.0},

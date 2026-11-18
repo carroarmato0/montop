@@ -108,6 +108,7 @@ anywhere with cgroups v2, and falls back to plain processes without them.
 | `Space` | Pause or resume updates |
 | `+` / `-` | Sample less or more often (0.125 s to 4 s; 0.25 s by default) |
 | `1` – `6` | Show or hide CPU, memory, disks, network, apps, GPU |
+| `d` | Choose the disks and filesystems to show (or right-click one to hide it) |
 | `PgUp` `PgDn` / `g` `G` | Move a page / go to the first or last row |
 | `Shift K` | Show or hide kernel threads |
 | `q` | Quit |
@@ -116,7 +117,13 @@ CPU% is measured against one core, as in top and htop: an app busy on two cores
 shows 200.
 
 Montop remembers the panels you show, the sort, apps or every process, kernel
-threads, and the update speed, in `~/.config/montop/settings.conf`.
+threads, the update speed, and the disks and filesystems you hid, in
+`~/.config/montop/settings.conf`. A hidden disk is remembered by its WWID or
+serial number, and a filesystem by its UUID, so they stay hidden when `sdb`
+becomes `sdc` or a btrfs subvolume is mounted elsewhere. Hiding only affects the
+window: `montop snapshot` still reports every disk.
+
+![Choosing the disks to show: a USB backup drive hidden, the panel behind saying 1 hidden](docs/screenshots/disks.png)
 
 ### From the command line
 
@@ -175,7 +182,9 @@ the memory shown is what the apps' GPU buffers hold.
 **Arm and Macs.** Montop builds and runs its tests on Arm (`aarch64`) in CI. On
 Arm, the CPU panel names the machine (`Apple MacBook Air (M2, 2022)`) or the
 chip (`Snapdragon X1E80100`), and reads the CPU temperature from the SoC's
-thermal zones; Apple's chips report none on Linux, so none is shown. Intel Macs
+thermal zones; Apple's chips report none on Linux, so none is shown. The Disks
+panel leaves out the internal namespaces Apple's SSD shows Linux next to its
+main one (`nvme0n2`, `nvme0n3`), unless they're partitioned or in use. Intel Macs
 are ordinary Intel or AMD hardware to Montop.
 
 **Measuring a command.** `montop run` starts the command in a systemd scope of

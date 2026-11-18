@@ -12,6 +12,8 @@ Item {
     property string key
     property string detail
     property color detailColor: Theme.colors.dark_foreground
+    property bool detailClickable: false
+    signal detailClicked()
     default property alias content: body.data
 
     Rectangle {
@@ -65,6 +67,14 @@ Item {
             text: panel.detail
             color: panel.detailColor
             elide: Text.ElideRight
+        }
+        HoverHandler {
+            enabled: panel.detailClickable
+            cursorShape: Qt.PointingHandCursor
+        }
+        TapHandler {
+            enabled: panel.detailClickable
+            onTapped: panel.detailClicked()
         }
     }
 
