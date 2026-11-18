@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """A made-up system for Montop to watch, for screenshots and demos.
 
-Writes a stand-in /proc and /sys under ROOT and keeps their counters moving
+Writes a stand-in /proc and /sys under ROOT (and the sizes of its
+filesystems, in ROOT/statvfs) and keeps their counters moving
 four times a second, following a fixed script: a browser streaming video
 (decoded on the Radeon 780M, the CPU's own GPU),
 music, a video export held to two cores, a paused game store, and a Rust
@@ -224,6 +225,11 @@ def setup():
     write(f"{PROC}/cpuinfo", "".join(f"processor\t: {i}\nmodel name\t: AMD Ryzen 9 7940HS w/ Radeon 780M Graphics\n\n"
                                      for i in range(CORES)))
     write(f"{PROC}/self/mounts", "/dev/nvme0n1p2 / ext4 rw,relatime 0 0\n/dev/nvme0n1p1 /boot vfat rw,relatime 0 0\n")
+    # How big the filesystems are, in bytes: total, free, available to users.
+    # Montop would otherwise ask this machine's own / and /boot.
+    gib = 1 << 30
+    write(f"{ROOT}/statvfs", f"/ {int(915 * gib)} {int(603 * gib)} {int(556 * gib)}\n"
+                             f"/boot {gib} {int(0.86 * gib)} {int(0.86 * gib)}\n")
     write(f"{SYS}/block/nvme0n1/dev", "259:0\n")
     write(f"{SYS}/block/nvme0n1/size", "2000409264\n")
     write(f"{SYS}/block/nvme0n1/device/model", "Samsung SSD 990 PRO 1TB\n")

@@ -22,7 +22,9 @@ specific to Montop.
 - `pkgbuild/PKGBUILD`: builds this checkout for `bin/install`.
 - `pkgbuild/omarchy-pkgs/`: the recipe for omacom/omarchy-pkgs, built from
   the GitHub release tarball. It is the source of truth for the PR there.
-- `tools/demo/`: the made-up demo system and the screenshot driver.
+- `tools/demo/`: the made-up demo system and the screenshot driver. A
+  stand-in root (`MONTOP_ROOT`) gives its filesystem sizes in `ROOT/statvfs`,
+  since statvfs() would otherwise report this machine's own disks.
 
 ## Loop
 

@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QSysInfo>
 #include <algorithm>
+#include <array>
 
 #include <cerrno>
 #include <dirent.h>
@@ -514,13 +515,37 @@ void Monitor::sampleFilesystems() {
         for (const QString &uuid : byUuid.entryList(QDir::System | QDir::Files | QDir::NoDotAndDotDot))
             m_uuidOf.insert(QFileInfo(QFileInfo(byUuid.filePath(uuid)).symLinkTarget()).fileName(), uuid);
     }
+    // A stand-in root can't make statvfs() answer for its mount points, so
+    // it says how big its filesystems are in its own statvfs file: a line
+    // per mount point, "PATH TOTAL FREE AVAILABLE" in bytes. Without one,
+    // or for a mount point it leaves out, the real filesystem is asked.
+    QHash<QString, std::array<double, 3>> standIn;
+    if (m_proc != "/proc") {
+        for (const QByteArray &line : readFile(m_proc + "/../statvfs").split('\n')) {
+            const QList<QByteArray> f = line.split(' ');
+            if (f.size() >= 4)
+                standIn.insert(QString::fromUtf8(f.mid(0, f.size() - 3).join(' ')),
+                               {f[f.size() - 3].toDouble(), f[f.size() - 2].toDouble(), f[f.size() - 1].toDouble()});
+        }
+    }
     for (const Mount &mount : parseMounts(mounts)) {
-        struct statvfs fs;
-        if (statvfs(QFile::encodeName(mount.path).constData(), &fs) != 0 || fs.f_blocks == 0)
+        double total, free, available;
+        const auto given = standIn.constFind(mount.path);
+        if (given != standIn.constEnd()) {
+            total = (*given)[0];
+            free = (*given)[1];
+            available = (*given)[2];
+        } else {
+            struct statvfs fs;
+            if (statvfs(QFile::encodeName(mount.path).constData(), &fs) != 0)
+                continue;
+            total = double(fs.f_blocks) * fs.f_frsize;
+            free = double(fs.f_bfree) * fs.f_frsize;
+            available = double(fs.f_bavail) * fs.f_frsize;
+        }
+        if (total <= 0)
             continue;
-        const double total = double(fs.f_blocks) * fs.f_frsize;
-        const double available = double(fs.f_bavail) * fs.f_frsize;
-        const double used = total - double(fs.f_bfree) * fs.f_frsize;
+        const double used = total - free;
         filesystems.append(QVariantMap{
             {"id", m_uuidOf.value(blockName(mount.device), mount.device)},
             {"path", mount.path}, {"device", mount.device}, {"type", mount.type},
