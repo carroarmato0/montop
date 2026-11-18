@@ -157,7 +157,12 @@ def main():
         shoot("limit.png")
         keys(("k", "Escape"))
 
-        # 4. The same, following a light theme.
+        # 4. Choosing the disks to show: the USB backup drive hidden.
+        keys("d", "j", ("k", "space"))
+        shoot("disks.png")
+        keys(("k", "space"), ("k", "Escape"))
+
+        # 5. The same, following a light theme.
         show(LIGHT)
         pointer(1900, 1060)
         keys(("k", "Down"), ("k", "Down"), "l")

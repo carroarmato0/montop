@@ -123,6 +123,8 @@ serial number, and a filesystem by its UUID, so they stay hidden when `sdb`
 becomes `sdc` or a btrfs subvolume is mounted elsewhere. Hiding only affects the
 window: `montop snapshot` still reports every disk.
 
+![Choosing the disks to show: a USB backup drive hidden, the panel behind saying 1 hidden](docs/screenshots/disks.png)
+
 ### From the command line
 
 ```sh
